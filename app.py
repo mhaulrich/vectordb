@@ -11,12 +11,11 @@ app = Flask(__name__)
 connection = None
 milvus = None
 
-
 metatable_name = 'vectordb_meta'
 
 # Milvus server IP address and port.
 # You may need to change _HOST and _PORT accordingly.
-_HOST = 'milvus'
+_HOST = 'localhost'
 _PORT = '19530'  # default value
 _INDEX_FILE_SIZE = 32  # max file size of stored index
 _METRIC_TYPE = MetricType.IP
@@ -26,7 +25,7 @@ def connect_db():
     try:
         connection = psycopg2.connect(user="postgres",
                                       password="mysecretpassword",
-                                      host="db",
+                                      host="localhost",
                                       port="5432",
                                       database="postgres")
 
@@ -69,7 +68,8 @@ def create_vector_table_in_db(name, dims, index_type):
     conn = get_connection()
     cursor = conn.cursor()
     # Write info about new vector table in meta
-    cursor.execute("INSERT INTO " + metatable_name + " (name, dims, index_type) VALUES (%s, %s, %s)", (name, dims, index_type))
+    cursor.execute("INSERT INTO " + metatable_name + " (name, dims, index_type) VALUES (%s, %s, %s)",
+                   (name, dims, index_type))
 
     # Create table in sql db to map from vector hashes to ids
     cursor.execute("CREATE TABLE " + name + """ 
@@ -105,7 +105,6 @@ def check_table_exists(table_name):
 # At every startup we check if the metatable exists in postgres. If not - create it
 # Hopefully it only create the first time the vector db is started
 def init_db():
-
     meta_table_exists = check_table_exists(metatable_name)
     if not meta_table_exists:
         print('No metatable, creating it')
@@ -256,7 +255,6 @@ def delete_db():
     cursor.close()
     cursor = conn.cursor()
 
-
     try:
         cursor.execute('DELETE FROM ' + metatable_name + ' WHERE name = %s', (db_name,))
     except (Exception, psycopg2.Error) as error:
@@ -284,27 +282,28 @@ def delete_db():
 #    Vector should be inserted into milvus
 
 def insert_vectorhash(dbname, vector_hash, asset_id):
-
     insert_vector_into_milvus = True
 
     # First check if vector hash exists already
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM ' + dbname + ' WHERE vector_hash = %s', (vector_hash, ))
+    try:
+        cursor.execute('SELECT * FROM ' + dbname + ' WHERE vector_hash = %s', (vector_hash,))
+    except (Exception, psycopg2.Error) as error:
+        print("DB does not exist", error)
+        conn.rollback()
+        return
+
     if cursor.rowcount > 0:
         insert_vector_into_milvus = False
-
-    print(vector_hash)
-    print(asset_id)
 
     # Because of primary key contraints we can simple add the vector_hash asset_id pair to the db
     # the DB will not add it if it exsists already
     try:
         cursor.execute('INSERT INTO ' + dbname + ' (vector_hash, asset_id) VALUES (%s, %s)', (vector_hash, asset_id))
-
-        print(cursor.query)
     except (Exception, psycopg2.Error) as error:
         print("Row already exists in db - this is ok", error)
+        conn.rollback()
 
     cursor.close
     conn.commit()
@@ -319,9 +318,6 @@ def insert_into_milvus(db_name, vector_hash, vector):
     ids = [vector_hash]
     vector_list = [vector]
 
-    print(type(ids))
-    print(ids)
-
     milvus.insert(db_name, records=vector_list, ids=ids)
 
 
@@ -334,7 +330,7 @@ def hash_vector(vector):
     return hash
 
 
-@app.route('/insert', methods = ['PUT'])
+@app.route('/insert', methods=['PUT'])
 def insert_vector():
     db_name = request.args.get('dbname')
     vector_with_id = request.json
@@ -353,7 +349,6 @@ def get_assets(dbname, vector_hash):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('SELECT asset_id FROM ' + dbname + ' WHERE vector_hash = %s', (vector_hash,))
-    print(cursor.query)
     asset_ids = []
     if cursor.rowcount > 0:
         row = cursor.fetchone()
@@ -364,13 +359,12 @@ def get_assets(dbname, vector_hash):
     return asset_ids
 
 
-@app.route('/lookupexact', methods = ['PUT'])
+@app.route('/lookupexact', methods=['PUT'])
 def lookup_exact():
     db_name = request.args.get('dbname')
     vector_with_id = request.json
     vector = vector_with_id['vector']
     vector_hash = hash_vector(vector)
-    print(str(vector_hash))
     assets_ids = get_assets(db_name, vector_hash)
     assets_ids_json = json.dumps(assets_ids)
     return assets_ids_json
@@ -381,11 +375,11 @@ def lookup_milvus(dbname, vector, k=10):
 
     vector_list = [vector]
 
-    param =  {
+    param = {
         'table_name': dbname,
         'query_records': vector_list,
         'top_k': k,
-        'nprobe' : 10
+        'nprobe': 10
     }
 
     status, results = milvus.search_vectors(**param)
@@ -409,7 +403,7 @@ def lookup_milvus(dbname, vector, k=10):
         return []
 
 
-@app.route('/lookup', methods = ['PUT'])
+@app.route('/lookup', methods=['PUT'])
 def lookup():
     db_name = request.args.get('dbname')
     vector_with_id = request.json
@@ -423,17 +417,16 @@ def lookup():
     exact_matches = {'distance': 0, 'asset_ids': assets_ids}
     results.append(exact_matches)
 
-    milvus_results = lookup_milvus(db_name, vector, 10)
+    milvus_results = lookup_milvus(db_name, vector, 20)
     for milvus_res in milvus_results:
         vector_hash = milvus_res['vectorhash']
         distance = milvus_res['distance']
         asset_ids = get_assets(db_name, vector_hash)
-        this_result = {'distance': distance, 'asset_ids': assets_ids}
+        this_result = {'distance': distance, 'asset_ids': asset_ids}
         results.append(this_result)
 
     results_json = json.dumps(results)
     return results_json
-
 
 
 init_db()
