@@ -1,0 +1,18 @@
+version: '3'
+services:
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+
+  db:
+    image: postgres:alpine
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: mysecretpassword
+    volumes:
+      - /home/mwh/vectordb/db-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+
