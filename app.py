@@ -5,7 +5,11 @@ import psycopg2
 import hashlib
 import json
 from flask import request
+import cProfile as profile
 
+# In outer section of code
+pr = profile.Profile()
+pr.disable()
 app = Flask(__name__)
 
 connection = None
@@ -305,7 +309,7 @@ def insert_vectorhash(dbname, vector_hash, asset_id):
         print("Row already exists in db - this is ok", error)
         conn.rollback()
 
-    cursor.close
+    cursor.close()
     conn.commit()
 
     return insert_vector_into_milvus
@@ -320,7 +324,9 @@ def insert_into_milvus(db_name, vector_hash, vector):
 
     milvus.insert(db_name, records=vector_list, ids=ids)
 
-
+# @TODO This way of first creating a string and then hashing it is silly
+#       Simply use update on each element
+#       I do like the 'use only 5 decimals' thing - so maybe keep the conversion to string
 def hash_vector(vector):
     vector_str = ','.join(['%.5f' % num for num in vector])
     m = hashlib.md5()
@@ -332,6 +338,7 @@ def hash_vector(vector):
 
 @app.route('/insert', methods=['PUT'])
 def insert_vector():
+    pr.enable()
     db_name = request.args.get('dbname')
     vector_with_id = request.json
     asset_id = vector_with_id['name']
@@ -342,6 +349,7 @@ def insert_vector():
     if vector_should_be_added_to_milvus:
         insert_into_milvus(db_name, vector_hash, vector)
 
+    pr.disable()
     return 'hej'
 
 
@@ -463,6 +471,18 @@ def listdba():
     return json.dumps(table_infos)
 
 
+def shutdown_server():
+    func = request.environ.get('werkzeug.server.shutdown')
+    if func is None:
+        raise RuntimeError('Not running with the Werkzeug Server')
+    func()
+
+
+@app.route('/shutdown', methods=['GET'])
+def shutdown():
+    pr.dump_stats('profile.pstat')
+    shutdown_server()
+    return 'Server shutting down...'
 
 init_db()
 

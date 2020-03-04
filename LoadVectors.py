@@ -5,10 +5,11 @@ import numpy as np
 
 
 URL = 'http://0.0.0.0:5001/insert'
+SHUTDOWNURL = 'http://0.0.0.0:5001/shutdown'
 
 DIMENSIONS = 2048
 
-DB_NAME = 'rtest3'
+DB_NAME = 'rtest6'
 
 # path to vectors
 vectors_file = '/stuff/imagenet/imagenetvectors-120000.avro'
@@ -32,7 +33,7 @@ schema = {
 parsed_schema = parse_schema(schema)
 
 # Reading
-max_vectors = 1000000
+max_vectors = 10000
 
 with open(vectors_file, 'rb') as fo:
     c = 0
@@ -49,3 +50,5 @@ with open(vectors_file, 'rb') as fo:
         c = c + 1
         if c >= max_vectors:
             break
+
+requests.get(url=SHUTDOWNURL)
