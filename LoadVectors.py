@@ -8,7 +8,7 @@ URL = 'http://0.0.0.0:5001/insert'
 
 DIMENSIONS = 2048
 
-DB_NAME = 'rtest2'
+DB_NAME = 'rtest3'
 
 # path to vectors
 vectors_file = '/stuff/imagenet/imagenetvectors-120000.avro'

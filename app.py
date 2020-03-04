@@ -9,7 +9,7 @@ from flask import request
 app = Flask(__name__)
 
 connection = None
-milvus = None
+global_milvus = None
 
 metatable_name = 'vectordb_meta'
 
@@ -183,10 +183,10 @@ def connect_to_milvus():
 
 # Get milvus connection
 def get_milvus():
-    global milvus
-    if milvus is None:
-        milvus = connect_to_milvus()
-    return milvus
+    global global_milvus
+    if global_milvus is None:
+        global_milvus = connect_to_milvus()
+    return global_milvus
 
 
 # Check if what is in meta corresponds with what vector_hash tables there are, and what there is in milvus
@@ -427,6 +427,41 @@ def lookup():
 
     results_json = json.dumps(results)
     return results_json
+
+
+@app.route('/listdbs', methods=['GET'])
+def listdba():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT name FROM " + metatable_name)
+    row = cursor.fetchone()
+    tables = []
+
+    while row is not None:
+        table_name = row[0]
+        tables.append(table_name)
+        row = cursor.fetchone()
+
+    milvus = get_milvus()
+
+    table_infos = []
+    for table_name in tables:
+        status, milvus_table = milvus.describe_table(table_name)
+        dims = milvus_table.dimension
+        index_file_size = milvus_table.index_file_size
+        metric_type = milvus_table.metric_type
+        status, num_rows = milvus.get_table_row_count(table_name)
+        cursor.execute("SELECT count(*) FROM " + table_name)
+        row = cursor.fetchone()
+        n_assets = row[0]
+        table_info = {'name': table_name, 'dimensions': dims, 'metric_type': str(metric_type), 'no_vectors': num_rows, 'no_assets' : n_assets}
+        table_infos.append(table_info)
+
+    cursor.close()
+    conn.commit()
+    return json.dumps(table_infos)
+
 
 
 init_db()
