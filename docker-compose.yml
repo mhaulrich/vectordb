@@ -11,8 +11,14 @@ services:
     environment:
       POSTGRES_PASSWORD: mysecretpassword
     volumes:
-      - /home/mwh/vectordb/db-data:/var/lib/postgresql/data
+      - ${VECTORDB_WD}/postgres/db-data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
 
-
+  milvus:
+    image: milvusdb/milvus:0.6.0-cpu-d120719-2b40dd
+    restart: always
+    volumes:
+      - ${VECTORDB_WD}/milvus-conf:/var/lib/milvus/conf
+      - ${VECTORDB_WD}/milvus/db:/var/lib/milvus/db
+      - ${VECTORDB_WD}/milvus/logs:/var/lib/milvus/logs

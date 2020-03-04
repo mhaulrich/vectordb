@@ -26,7 +26,7 @@ def connect_db():
     try:
         connection = psycopg2.connect(user="postgres",
                                       password="mysecretpassword",
-                                      host="localhost",
+                                      host="db",
                                       port="5432",
                                       database="postgres")
 
@@ -436,8 +436,7 @@ def lookup():
 
 
 
-
-
 init_db()
 
-app.run(port=5001)
+if __name__ == "__main__":
+    app.run(port=5001)
