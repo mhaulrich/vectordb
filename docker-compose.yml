@@ -22,3 +22,5 @@ services:
       - ${VECTORDB_WD}/milvus-conf:/var/lib/milvus/conf
       - ${VECTORDB_WD}/milvus/db:/var/lib/milvus/db
       - ${VECTORDB_WD}/milvus/logs:/var/lib/milvus/logs
+    ports:
+      - "19530:19530"

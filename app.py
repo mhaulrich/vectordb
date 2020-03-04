@@ -16,7 +16,7 @@ metatable_name = 'vectordb_meta'
 
 # Milvus server IP address and port.
 # You may need to change _HOST and _PORT accordingly.
-_HOST = '127.0.0.1'
+_HOST = 'milvus'
 _PORT = '19530'  # default value
 _INDEX_FILE_SIZE = 32  # max file size of stored index
 _METRIC_TYPE = MetricType.IP
