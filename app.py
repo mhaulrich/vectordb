@@ -1,11 +1,14 @@
 import sys
-from flask import Flask
+from flask import Flask, abort, Response
 from milvus import Milvus, IndexType, MetricType
 import psycopg2
 import hashlib
 import json
 from flask import request
 import cProfile as profile
+import decimal
+
+decimal.getcontext().prec = 5
 
 # In outer section of code
 pr = profile.Profile()
@@ -23,6 +26,22 @@ _HOST = 'localhost'
 _PORT = '19530'  # default value
 _INDEX_FILE_SIZE = 32  # max file size of stored index
 _METRIC_TYPE = MetricType.IP
+
+# In order not to connect to DB to check dimentions every time - we keep a cache
+# For now - we assume that we will never have so many dbs that it is a problem to have this in memory
+db_dimensions_cache = {}
+
+
+def abort_missing_parameters(method, need_to_have_parameters, additional_comment=None):
+    error_string = 'ERROR:  Missing parameters. Method "' + method + "' needs the following parameters: " + ','.join(need_to_have_parameters) + '\n'
+    if additional_comment:
+        error_string = error_string + '\t' + additional_comment + '\n'
+    abort(Response(error_string))
+
+
+def abort_wrong_dimenions(dbname, reqqest_dims, db_dimensions):
+    error_string = 'ERROR: vectors in ' + dbname + ' have ' + str(db_dimensions) + ' dimensions. Vector in request has ' + str(reqqest_dims) + '\n'
+    abort(Response(error_string))
 
 
 def connect_db():
@@ -152,6 +171,19 @@ def create_vector_db(vector_db_name, dimensions, index_type='IVFLAT'):
         milvus.create_index(vector_db_name, index_param)
 
     return 1, 'Vector database with name: ' + vector_db_name + ' created'
+
+
+def get_db_dimensions(dbname):
+    dims = db_dimensions_cache.get(dbname)
+    if dims is None:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT dims FROM " + metatable_name)
+        row = cursor.fetchone()
+        dims = row[0]
+        db_dimensions_cache[dbname] = dims
+
+    return dims
 
 
 def show_rows():
@@ -304,7 +336,7 @@ def insert_vectorhash(dbname, vector_hash, asset_id):
     # Because of primary key contraints we can simple add the vector_hash asset_id pair to the db
     # the DB will not add it if it exsists already
     try:
-        cursor.execute('INSERT INTO ' + dbname + ' (vector_hash, asset_id) VALUES (%s, %s)', (vector_hash, asset_id))
+        cursor.execute('INSERT INTO ' + dbname + ' (vector_hash, asset_id) VALUES (%s, %s) ON CONFLICT DO NOTHING', (vector_hash, asset_id))
     except (Exception, psycopg2.Error) as error:
         print("Row already exists in db - this is ok", error)
         conn.rollback()
@@ -324,13 +356,16 @@ def insert_into_milvus(db_name, vector_hash, vector):
 
     milvus.insert(db_name, records=vector_list, ids=ids)
 
-# @TODO This way of first creating a string and then hashing it is silly
-#       Simply use update on each element
-#       I do like the 'use only 5 decimals' thing - so maybe keep the conversion to string
+
+# %TODO This stuff is pretty slow. Maybe the need for limiting number of decimals is not necessary
 def hash_vector(vector):
-    vector_str = ','.join(['%.5f' % num for num in vector])
     m = hashlib.md5()
-    m.update(bytes(vector_str, encoding='utf-8'))
+    for num in vector:
+        num_str = '%.5f' % num
+        m.update(bytes(num_str, encoding='utf-8'))
+
+    # vector_str = ','.join(['%.5f' % num for num in vector])
+    # m.update(bytes(vector_str, encoding='utf-8'))
     md5_bytes = m.digest()
     hash = int.from_bytes(md5_bytes[:8], 'little', signed=True)
     return hash
@@ -341,8 +376,16 @@ def insert_vector():
     pr.enable()
     db_name = request.args.get('dbname')
     vector_with_id = request.json
+    if (db_name is None) or (vector_with_id is None):
+        abort_missing_parameters('insert', ['dbname'], 'and vector in body')
+
     asset_id = vector_with_id['name']
     vector = vector_with_id['vector']
+    query_vector_dims = len(vector)
+    db_dims = get_db_dimensions(db_name)
+    if query_vector_dims != db_dims:
+        abort_wrong_dimenions(db_name, query_vector_dims, db_dims)
+
     vector_hash = hash_vector(vector)
 
     vector_should_be_added_to_milvus = insert_vectorhash(db_name, vector_hash, asset_id)

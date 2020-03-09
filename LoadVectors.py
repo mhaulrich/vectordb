@@ -9,7 +9,7 @@ SHUTDOWNURL = 'http://0.0.0.0:5001/shutdown'
 
 DIMENSIONS = 2048
 
-DB_NAME = 'rtest6'
+DB_NAME = 'rtest9'
 
 # path to vectors
 vectors_file = '/stuff/imagenet/imagenetvectors-120000.avro'
