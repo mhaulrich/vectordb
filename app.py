@@ -178,7 +178,7 @@ def get_db_dimensions(dbname):
     if dims is None:
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT dims FROM " + metatable_name)
+        cursor.execute("SELECT dims FROM " + metatable_name + ' WHERE name = %s', (dbname,))
         row = cursor.fetchone()
         dims = row[0]
         db_dimensions_cache[dbname] = dims
@@ -306,7 +306,8 @@ def delete_db():
         return 'Problem with deleting table. See server log for details'
 
 
-# Tries to insert vectorhash and asset_id into postgres
+# Tries to insert vectorhashes and asset_ids into postgres
+# Note that the first check is done on at a time so that we know for later whether or not the vector should be inserted into milvus
 # There are three cases:
 # 1. Vector hash and asset_id already exists in db\
 #    Nothing should be done
@@ -317,26 +318,33 @@ def delete_db():
 #    (Vector hash, asset_id) should be inserted into db
 #    Vector should be inserted into milvus
 
-def insert_vectorhash(dbname, vector_hash, asset_id):
-    insert_vector_into_milvus = True
+def insert_vectorhash(dbname, vector_hashes, asset_ids):
+    insert_vector_into_milvus = []
 
-    # First check if vector hash exists already
+    # Create list of tuples to use in sql
+    list_of_both = []
+    # First check if vector hashes exist already
     conn = get_connection()
     cursor = conn.cursor()
-    try:
-        cursor.execute('SELECT * FROM ' + dbname + ' WHERE vector_hash = %s', (vector_hash,))
-    except (Exception, psycopg2.Error) as error:
-        print("DB does not exist", error)
-        conn.rollback()
-        return
+    for i in range(len(vector_hashes)):
+        vector_hash = vector_hashes[i]
+        asset_id = asset_ids[i]
+        list_of_both.append((vector_hash, asset_id))
 
-    if cursor.rowcount > 0:
-        insert_vector_into_milvus = False
+        try:
+            cursor.execute('SELECT * FROM ' + dbname + ' WHERE vector_hash = %s', (vector_hash,))
+        except (Exception, psycopg2.Error) as error:
+            print("DB does not exist", error)
+            conn.rollback()
+            return
 
+        insert_vector_into_milvus.append(cursor.rowcount == 0)
+
+    # The actual inserts we do all at once
     # Because of primary key contraints we can simple add the vector_hash asset_id pair to the db
     # the DB will not add it if it exsists already
     try:
-        cursor.execute('INSERT INTO ' + dbname + ' (vector_hash, asset_id) VALUES (%s, %s) ON CONFLICT DO NOTHING', (vector_hash, asset_id))
+        cursor.executemany('INSERT INTO ' + dbname + ' (vector_hash, asset_id) VALUES (%s, %s) ON CONFLICT DO NOTHING', list_of_both)
     except (Exception, psycopg2.Error) as error:
         print("Row already exists in db - this is ok", error)
         conn.rollback()
@@ -347,14 +355,11 @@ def insert_vectorhash(dbname, vector_hash, asset_id):
     return insert_vector_into_milvus
 
 
-def insert_into_milvus(db_name, vector_hash, vector):
+def insert_into_milvus(db_name, vector_hashes, vectors):
     milvus = get_milvus()
 
     # Milvus expets lists
-    ids = [vector_hash]
-    vector_list = [vector]
-
-    milvus.insert(db_name, records=vector_list, ids=ids)
+    milvus.insert(db_name, records=vectors, ids=vector_hashes)
 
 
 # %TODO This stuff is pretty slow. Maybe the need for limiting number of decimals is not necessary
@@ -371,7 +376,7 @@ def hash_vector(vector):
     return hash
 
 
-@app.route('/insert', methods=['PUT'])
+@app.route('/insertvector', methods=['PUT'])
 def insert_vector():
     pr.enable()
     db_name = request.args.get('dbname')
@@ -388,9 +393,51 @@ def insert_vector():
 
     vector_hash = hash_vector(vector)
 
-    vector_should_be_added_to_milvus = insert_vectorhash(db_name, vector_hash, asset_id)
-    if vector_should_be_added_to_milvus:
+    vector_should_be_added_to_milvus = insert_vectorhash(db_name, [vector_hash], [asset_id])
+    if vector_should_be_added_to_milvus[0]:
         insert_into_milvus(db_name, vector_hash, vector)
+
+    pr.disable()
+    return 'hej'
+
+
+@app.route('/insertvectors', methods=['PUT'])
+def insert_vectors():
+    pr.enable()
+    db_name = request.args.get('dbname')
+    vectors_with_ids = request.json
+    if (db_name is None) or (vectors_with_ids is None):
+        abort_missing_parameters('insert', ['dbname'], 'and vectors in body')
+
+    db_dims = get_db_dimensions(db_name)
+    asset_ids = []
+    vectors = []
+    vector_hashes = []
+
+    for vector_with_id in vectors_with_ids:
+        asset_id = vector_with_id['name']
+        vector = vector_with_id['vector']
+        query_vector_dims = len(vector)
+        if query_vector_dims != db_dims:
+            abort_wrong_dimenions(db_name, query_vector_dims, db_dims)
+        vector_hash = hash_vector(vector)
+
+        asset_ids.append(asset_id)
+        vectors.append(vector)
+        vector_hashes.append(vector_hash)
+    vectors_should_be_added_to_milvus = insert_vectorhash(db_name, vector_hashes, asset_ids)
+
+    # Find hashes and vectors that should be added to milvus
+    # We do this in a dict to avoid actually adding the same vector more than once
+    milvus_vectors = {}
+    for i in range(len(vectors_should_be_added_to_milvus)):
+        if vectors_should_be_added_to_milvus[i]:
+            milvus_vectors[vector_hashes[i]] = vectors[i]
+
+    print('Adding: ' + str(len(milvus_vectors)) + ' to Milvus')
+
+    if len(milvus_vectors) > 0:
+        insert_into_milvus(db_name, list(milvus_vectors.keys()), list(milvus_vectors.values()))
 
     pr.disable()
     return 'hej'
