@@ -3,3 +3,5 @@ milvus/*
 *~
 PyCharmProject/.idea/*
 PyCharmProject/venv/*
+PyCharmProject/tests/__pycache__/*
+PyCharmProject/src/app/__pycache__/*

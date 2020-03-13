@@ -2,11 +2,11 @@ import sys
 from flask import Flask, abort, Response
 from milvus import Milvus, IndexType, MetricType
 import psycopg2
-import hashlib
 import json
 from flask import request
 import cProfile as profile
 import decimal
+from app.VectorUtils import hash_vector
 
 decimal.getcontext().prec = 5
 
@@ -360,20 +360,6 @@ def insert_into_milvus(db_name, vector_hashes, vectors):
 
     # Milvus expets lists
     milvus.insert(db_name, records=vectors, ids=vector_hashes)
-
-
-# %TODO This stuff is pretty slow. Maybe the need for limiting number of decimals is not necessary
-def hash_vector(vector):
-    m = hashlib.md5()
-    for num in vector:
-        num_str = '%.5f' % num
-        m.update(bytes(num_str, encoding='utf-8'))
-
-    # vector_str = ','.join(['%.5f' % num for num in vector])
-    # m.update(bytes(vector_str, encoding='utf-8'))
-    md5_bytes = m.digest()
-    hash = int.from_bytes(md5_bytes[:8], 'little', signed=True)
-    return hash
 
 
 @app.route('/insertvector', methods=['PUT'])

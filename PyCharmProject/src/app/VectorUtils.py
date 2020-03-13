@@ -1,12 +1,7 @@
-from fastavro import reader, parse_schema
-import requests
-import json
-import numpy as np
 import hashlib
-from timeit import default_timer as timer
 from array import array
 import marshal
-import time
+import numpy as np
 
 
 def hash_vector1(vector):
@@ -41,7 +36,7 @@ def hash_vector3(vector):
     m = hashlib.md5()
     for num in vector:
         num_int = int(num * 100000)
-        m.update(num_int.to_bytes(16, 'little', signed=False))
+        m.update(num_int.to_bytes(16, 'little', signed=True))
 
     # vector_str = ','.join(['%.5f' % num for num in vector])
     # m.update(bytes(vector_str, encoding='utf-8'))
@@ -85,94 +80,5 @@ def hash_vector6(vector):
     return hash
 
 
-# path to vectors
-vectors_file = '/stuff/imagenet/imagenetvectors-120000.avro'
-
-schema = {
-    'type': 'record',
-    'name': 'VectorWithName',
-    'namespace': 'mwh.image',
-    'fields': [{
-        'name': 'name',
-        'type': 'string'
-    }, {
-        'name': 'vector',
-        'type': {
-            'type': 'array',
-            'items': 'float'
-        }
-    }]
-}
-
-parsed_schema = parse_schema(schema)
-
-# Reading
-max_vectors = 50000
-
-
-vectors = []
-
-with open(vectors_file, 'rb') as fo:
-    c = 0
-
-    for record in reader(fo):
-        record_json = json.dumps(record)
-        vector_list = record['vector']
-        vector = np.asarray(vector_list)
-        norm_vector = vector / np.linalg.norm(vector)
-        norm_vector_list = norm_vector.tolist()
-
-        vectors.append(norm_vector_list)
-
-        c = c + 1
-        if c >= max_vectors:
-            break
-
-print(len(vectors))
-
-start = timer()
-for v in vectors:
-    hash_vector1(v)
-end = timer()
-t = end - start
-print('Method 1: ', t)
-
-
-start = timer()
-for v in vectors:
-    hash_vector2(v)
-end = timer()
-t = end - start
-print('Method 2: ', t)
-
-
-start = timer()
-for v in vectors:
-    hash_vector3(v)
-end = timer()
-t = end - start
-print('Method 3: ', t)
-
-
-start = timer()
-for v in vectors:
-    hash_vector4(v)
-end = timer()
-t = end - start
-print('Method 4: ', t)
-
-
-start = timer()
-for v in vectors:
-    hash_vector5(v)
-end = timer()
-t = end - start
-print('Method 5: ', t)
-
-
-start = timer()
-for v in vectors:
-    hash_vector6(v)
-end = timer()
-t = end - start
-print('Method 6: ', t)
+def hash_vector(vector):
+    return hash_vector6(vector)
