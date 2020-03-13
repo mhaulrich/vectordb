@@ -1,3 +1,5 @@
 postgres/*
 milvus/*
 *~
+PyCharmProject/.idea/*
+PyCharmProject/venv/*
