@@ -5,10 +5,25 @@ import psycopg2
 import json
 from flask import request
 import cProfile as profile
-import decimal
-from app.VectorUtils import hash_vector
+from VectorUtils import hash_vector
 
-decimal.getcontext().prec = 5
+
+# These are the correct values for using with docker-compose
+# If running outside docker-compose run with
+# python3 app.py <SQL HOST> <SQL PORT>  <MILVUS_HOST> <MILVUS PORT>
+MILVUS_HOST = 'milvus'
+MILVUS_PORT = '19530'  # default value
+
+POSTGRES_HOST = 'db'
+POSTGRES_PORT = '5432'
+
+
+if len(sys.argv) == 4:
+    POSTGRES_HOST = sys.argv[0]
+    POSTGRES_PORT = sys.argv[1]
+    MILVUS_HOST = sys.argv[2]
+    MILVUS_PORT = sys.argv[3]
+
 
 # In outer section of code
 pr = profile.Profile()
@@ -20,10 +35,6 @@ global_milvus = None
 
 metatable_name = 'vectordb_meta'
 
-# Milvus server IP address and port.
-# You may need to change _HOST and _PORT accordingly.
-_HOST = 'localhost'
-_PORT = '19530'  # default value
 _INDEX_FILE_SIZE = 32  # max file size of stored index
 _METRIC_TYPE = MetricType.IP
 
@@ -46,11 +57,11 @@ def abort_wrong_dimenions(dbname, reqqest_dims, db_dimensions):
 
 def connect_db():
     try:
-        connection = psycopg2.connect(user="postgres",
-                                      password="mysecretpassword",
-                                      host="localhost",
-                                      port="5432",
-                                      database="postgres")
+        connection = psycopg2.connect(user='postgres',
+                                      password='mysecretpassword',
+                                      host=POSTGRES_HOST,
+                                      port=POSTGRES_PORT,
+                                      database='postgres')
 
         print(connection.get_dsn_parameters(), "\n")
 
@@ -208,7 +219,7 @@ def connect_to_milvus():
 
     # Connect to Milvus server
     # You may need to change _HOST and _PORT accordingly
-    param = {'host': _HOST, 'port': _PORT}
+    param = {'host': MILVUS_HOST, 'port': MILVUS_PORT}
     status = milvus.connect(**param)
     if status.OK():
         return milvus
