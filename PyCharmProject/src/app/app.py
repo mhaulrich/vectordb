@@ -17,13 +17,16 @@ MILVUS_PORT = '19530'  # default value
 POSTGRES_HOST = 'db'
 POSTGRES_PORT = '5432'
 
+print(sys.argv)
 
-if len(sys.argv) == 4:
-    POSTGRES_HOST = sys.argv[0]
-    POSTGRES_PORT = sys.argv[1]
-    MILVUS_HOST = sys.argv[2]
-    MILVUS_PORT = sys.argv[3]
+if len(sys.argv) == 5:
+    POSTGRES_HOST = sys.argv[1]
+    POSTGRES_PORT = sys.argv[2]
+    MILVUS_HOST = sys.argv[3]
+    MILVUS_PORT = sys.argv[4]
 
+print('Postgres connection params:', POSTGRES_HOST, POSTGRES_PORT)
+print('Milvus connection params:', MILVUS_HOST, MILVUS_PORT)
 
 # In outer section of code
 pr = profile.Profile()

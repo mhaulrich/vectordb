@@ -1,6 +1,4 @@
 # vectordb
-## Things are not working right now - don't try to use the stuff now - wait patiently for M to fix it :-S
-
 
 ## How to run
 Change working dir in .env before running\
@@ -22,6 +20,11 @@ curl "0.0.0.0:5000/createdb?dbname=test&dimensions=8"
 Delete DB
 ```
 curl 0.0.0.0:5000/deletedb?dbname=test
+```
+List databases
+```
+curl 0.0.0.0:5000/listdbs | jq
+
 ```
 Insert vector into DB
 ```
