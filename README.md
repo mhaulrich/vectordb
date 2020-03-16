@@ -1,4 +1,6 @@
 # vectordb
+## Things are not working right now - don't try to use the stuff now - wait patiently for M to fix it :-S
+
 
 ## How to run
 Change working dir in .env before running\
