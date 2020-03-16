@@ -1,6 +1,5 @@
 # vectordb
-Currently building the image is very slow - at least the first time because the installation of the grpcio-tools is taking forever. This has to to with the psycopg2 client I believe.
-If anyone more proficient in docker than me knows how to avoid this long build - please let me know how. Or change it yourself.
+## Things are not working right now - don't try to use the stuff now - wait patiently for M to fix it :-S
 
 
 ## How to run
