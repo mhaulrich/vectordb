@@ -1,49 +1,35 @@
 import sys
 from flask import Flask, abort, Response
-from milvus import Milvus, IndexType, MetricType
-import psycopg2
 import json
 from flask import request
 import cProfile as profile
 from VectorUtils import hash_vector
+from DB_operations import *
+from Milvus_operations import *
 
-
-# These are the correct values for using with docker-compose
 # If running outside docker-compose run with
 # python3 app.py <SQL HOST> <SQL PORT>  <MILVUS_HOST> <MILVUS PORT>
-MILVUS_HOST = 'milvus'
-MILVUS_PORT = '19530'  # default value
 
-POSTGRES_HOST = 'db'
-POSTGRES_PORT = '5432'
 
 print(sys.argv)
 
 if len(sys.argv) == 5:
-    POSTGRES_HOST = sys.argv[1]
-    POSTGRES_PORT = sys.argv[2]
-    MILVUS_HOST = sys.argv[3]
-    MILVUS_PORT = sys.argv[4]
+    postgres_host = sys.argv[1]
+    postgres_port = sys.argv[2]
+    setPostGresHost(postgres_host, postgres_port)
 
-print('Postgres connection params:', POSTGRES_HOST, POSTGRES_PORT)
-print('Milvus connection params:', MILVUS_HOST, MILVUS_PORT)
+    milvus_host = sys.argv[3]
+    milvus_port = sys.argv[4]
+    setMilvusHost(milvus_host, milvus_port)
+
+
+print('Postgres connection params:', postgres_host, postgres_port)
+print('Milvus connection params:', milvus_host, milvus_port)
 
 # In outer section of code
 pr = profile.Profile()
 pr.disable()
 app = Flask(__name__)
-
-connection = None
-global_milvus = None
-
-metatable_name = 'vectordb_meta'
-
-_INDEX_FILE_SIZE = 32  # max file size of stored index
-_METRIC_TYPE = MetricType.IP
-
-# In order not to connect to DB to check dimentions every time - we keep a cache
-# For now - we assume that we will never have so many dbs that it is a problem to have this in memory
-db_dimensions_cache = {}
 
 
 def abort_missing_parameters(method, need_to_have_parameters, additional_comment=None):
@@ -58,194 +44,13 @@ def abort_wrong_dimenions(dbname, reqqest_dims, db_dimensions):
     abort(Response(error_string))
 
 
-def connect_db():
-    try:
-        connection = psycopg2.connect(user='postgres',
-                                      password='mysecretpassword',
-                                      host=POSTGRES_HOST,
-                                      port=POSTGRES_PORT,
-                                      database='postgres')
-
-        print(connection.get_dsn_parameters(), "\n")
-
-        return connection
-
-    except (Exception, psycopg2.Error) as error:
-        print("Error while connecting to PostgreSQL", error)
-
-
-# Get postgres connection
-def get_connection():
-    global connection
-    if connection is None:
-        connection = connect_db()
-    return connection
-
-
-# Create the meta table in postgres
-# This holds information about what tables there are, dims in table and index type
-def create_meta_table():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("CREATE TABLE " + metatable_name + """ 
-          (
-                   name VARCHAR(30) NOT null,
-                   dims INT NOT null,
-                   index_type VARCHAR(30),
-                   PRIMARY KEY(name)
-          )
-          """)
-    cursor.close()
-    conn.commit()
-
-
-# Create new vector table in postgres
-# This creates the table and also adds information about it to the meta table
-def create_vector_table_in_db(name, dims, index_type):
-    conn = get_connection()
-    cursor = conn.cursor()
-    # Write info about new vector table in meta
-    cursor.execute("INSERT INTO " + metatable_name + " (name, dims, index_type) VALUES (%s, %s, %s)",
-                   (name, dims, index_type))
-
-    # Create table in sql db to map from vector hashes to ids
-    cursor.execute("CREATE TABLE " + name + """ 
-              (
-                   vector_hash BIGINT NOT null,
-                   asset_id VARCHAR(20) NOT null,
-                   PRIMARY KEY(vector_hash, asset_id)
-              )
-              """)
-    cursor.close()
-    conn.commit()
-
-
-# Check if table exists in postgres
-def check_table_exists(table_name):
-    conn = get_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.execute("SELECT * FROM pg_catalog.pg_tables WHERE tablename = '" + table_name + "'")
-        cursor.close()
-        conn.commit()
-        if cursor.rowcount < 1:
-            return False
-        else:
-            return True
-    except (Exception, psycopg2.Error) as e:
-        # Don't really like this. We must be able to check if the error is actually that the table does not exist
-        print('Table does not exist')
-        cursor.close()
-        return False;
-
-
-# At every startup we check if the metatable exists in postgres. If not - create it
-# Hopefully it only create the first time the vector db is started
-def init_db():
-    meta_table_exists = check_table_exists(metatable_name)
-    if not meta_table_exists:
-        print('No metatable, creating it')
-        create_meta_table()
-    else:
-        print('Meta table already exists')
-
-
-def check_table_exists_milvus(table_name):
-    milvus = get_milvus()
-
-    status, ok = milvus.has_table(table_name)
-    return ok
-
-
-# Create new table in out vector db. This consists of two thiings
-# - create table in postgres to hold mapping from vector hash to assets
-# - create table in milvus for the actual vector search
-def create_vector_db(vector_db_name, dimensions, index_type='IVFLAT'):
-    if check_table_exists(vector_db_name):
-        return -1, 'Error: Vector database with name: ' + vector_db_name + ' already exists'
-    create_vector_table_in_db(vector_db_name, dimensions, index_type)
-
-    milvus = get_milvus()
-
-    if check_table_exists_milvus(vector_db_name):
-        return -1, 'Error: table with name: ' + vector_db_name + ' exists in milvus (but not in postgres)'
-    else:
-        param = {
-            'table_name': vector_db_name,
-            'dimension': dimensions,
-            'index_file_size': _INDEX_FILE_SIZE,
-            'metric_type': _METRIC_TYPE
-        }
-        milvus.create_table(param)
-
-        index_param = {
-            'index_type': IndexType.IVFLAT,
-            'nlist': 2048
-        }
-        milvus.create_index(vector_db_name, index_param)
-
-    return 1, 'Vector database with name: ' + vector_db_name + ' created'
-
-
-def get_db_dimensions(dbname):
-    dims = db_dimensions_cache.get(dbname)
-    if dims is None:
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT dims FROM " + metatable_name + ' WHERE name = %s', (dbname,))
-        row = cursor.fetchone()
-        dims = row[0]
-        db_dimensions_cache[dbname] = dims
-
-    return dims
-
-
-def show_rows():
-    cursor = connection.cursor()
-    # Print PostgreSQL Connection properties
-    print(connection.get_dsn_parameters(), "\n")
-
-    cursor.execute("SELECT * FROM " + metatable_name)
-    print("The number of parts: ", cursor.rowcount)
-    row = cursor.fetchone()
-
-    i = 1
-    while row is not None:
-        print(row)
-        row = cursor.fetchone()
-        i = i + 1
-    return i
-
-
-def connect_to_milvus():
-    milvus = Milvus()
-
-    # Connect to Milvus server
-    # You may need to change _HOST and _PORT accordingly
-    param = {'host': MILVUS_HOST, 'port': MILVUS_PORT}
-    status = milvus.connect(**param)
-    if status.OK():
-        return milvus
-    else:
-        print("Server connect fail.")
-        sys.exit(1)
-
-
-# Get milvus connection
-def get_milvus():
-    global global_milvus
-    if global_milvus is None:
-        global_milvus = connect_to_milvus()
-    return global_milvus
-
-
 # Check if what is in meta corresponds with what vector_hash tables there are, and what there is in milvus
 @app.route('/checkintegrity')
 def check_db_integrety():
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT name FROM " + metatable_name)
+    cursor.execute("SELECT name FROM " + METATABLE_NAME)
     print("Number of tables in meta: ", cursor.rowcount)
     row = cursor.fetchone()
 
@@ -266,12 +71,6 @@ def check_db_integrety():
         return 'All ok'
     else:
         return 'DB integrety bad. Check server output for details'
-
-
-@app.route('/')
-def hello():
-    count = show_rows()
-    return 'Total rows: ' + str(count)
 
 
 @app.route('/createdb')
@@ -306,7 +105,7 @@ def delete_db():
     cursor = conn.cursor()
 
     try:
-        cursor.execute('DELETE FROM ' + metatable_name + ' WHERE name = %s', (db_name,))
+        cursor.execute('DELETE FROM ' + METATABLE_NAME + ' WHERE name = %s', (db_name,))
     except (Exception, psycopg2.Error) as error:
         all_ok = False
         print("Error while trying to delete table in metatable.", error)
@@ -318,62 +117,6 @@ def delete_db():
         return 'Table deleted'
     else:
         return 'Problem with deleting table. See server log for details'
-
-
-# Tries to insert vectorhashes and asset_ids into postgres
-# Note that the first check is done on at a time so that we know for later whether or not the vector should be inserted into milvus
-# There are three cases:
-# 1. Vector hash and asset_id already exists in db\
-#    Nothing should be done
-# 2. Vector hash exists but this asset_id does not
-#    (Vector hash, asset_id) should be inserted into db
-#    No vector should be added to Milvus as it is already there
-# 3. New vector hash.
-#    (Vector hash, asset_id) should be inserted into db
-#    Vector should be inserted into milvus
-
-def insert_vectorhash(dbname, vector_hashes, asset_ids):
-    insert_vector_into_milvus = []
-
-    # Create list of tuples to use in sql
-    list_of_both = []
-    # First check if vector hashes exist already
-    conn = get_connection()
-    cursor = conn.cursor()
-    for i in range(len(vector_hashes)):
-        vector_hash = vector_hashes[i]
-        asset_id = asset_ids[i]
-        list_of_both.append((vector_hash, asset_id))
-
-        try:
-            cursor.execute('SELECT * FROM ' + dbname + ' WHERE vector_hash = %s', (vector_hash,))
-        except (Exception, psycopg2.Error) as error:
-            print("DB does not exist", error)
-            conn.rollback()
-            return
-
-        insert_vector_into_milvus.append(cursor.rowcount == 0)
-
-    # The actual inserts we do all at once
-    # Because of primary key contraints we can simple add the vector_hash asset_id pair to the db
-    # the DB will not add it if it exsists already
-    try:
-        cursor.executemany('INSERT INTO ' + dbname + ' (vector_hash, asset_id) VALUES (%s, %s) ON CONFLICT DO NOTHING', list_of_both)
-    except (Exception, psycopg2.Error) as error:
-        print("Row already exists in db - this is ok", error)
-        conn.rollback()
-
-    cursor.close()
-    conn.commit()
-
-    return insert_vector_into_milvus
-
-
-def insert_into_milvus(db_name, vector_hashes, vectors):
-    milvus = get_milvus()
-
-    # Milvus expets lists
-    milvus.insert(db_name, records=vectors, ids=vector_hashes)
 
 
 @app.route('/insertvector', methods=['PUT'])
@@ -443,20 +186,6 @@ def insert_vectors():
     return 'hej'
 
 
-def get_assets(dbname, vector_hash):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT asset_id FROM ' + dbname + ' WHERE vector_hash = %s', (vector_hash,))
-    asset_ids = []
-    if cursor.rowcount > 0:
-        row = cursor.fetchone()
-        while row is not None:
-            asset_id = row[0]
-            asset_ids.append(asset_id)
-            row = cursor.fetchone()
-    return asset_ids
-
-
 @app.route('/lookupexact', methods=['PUT'])
 def lookup_exact():
     db_name = request.args.get('dbname')
@@ -466,39 +195,6 @@ def lookup_exact():
     assets_ids = get_assets(db_name, vector_hash)
     assets_ids_json = json.dumps(assets_ids)
     return assets_ids_json
-
-
-def lookup_milvus(dbname, vector, k=10):
-    milvus = get_milvus()
-
-    vector_list = [vector]
-
-    param = {
-        'table_name': dbname,
-        'query_records': vector_list,
-        'top_k': k,
-        'nprobe': 10
-    }
-
-    status, results = milvus.search_vectors(**param)
-    if len(results) > 0:
-
-        res = results[0]
-        return_res = []
-
-        known_results = {}
-
-        for r in res:
-            print(r)
-            vectorhash = r.id
-            if vectorhash in known_results:
-                continue
-            known_results[vectorhash] = 1
-            resline = {'distance': r.distance, 'vectorhash': vectorhash}
-            return_res.append(resline)
-        return return_res
-    else:
-        return []
 
 
 @app.route('/lookup', methods=['PUT'])
@@ -532,7 +228,7 @@ def listdba():
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT name FROM " + metatable_name)
+    cursor.execute("SELECT name FROM " + METATABLE_NAME)
     row = cursor.fetchone()
     tables = []
 
