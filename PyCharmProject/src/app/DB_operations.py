@@ -12,24 +12,25 @@ METATABLE_NAME = 'vectordb_meta'
 db_dimensions_cache = {}
 
 
-def setPostGresHost(postgres_host, postgres_port):
+def set_postsres_host(postgres_host, postgres_port):
     global POSTGRES_HOST
     global POSTGRES_PORT
     POSTGRES_HOST = postgres_host
     POSTGRES_PORT = postgres_port
+    print('Postgres connection params:', postgres_host, postgres_port)
 
 
 def connect_db():
     try:
-        connection = psycopg2.connect(user='postgres',
-                                      password='mysecretpassword',
-                                      host=POSTGRES_HOST,
-                                      port=POSTGRES_PORT,
-                                      database='postgres')
+        conn = psycopg2.connect(user='postgres',
+                                password='mysecretpassword',
+                                host=POSTGRES_HOST,
+                                port=POSTGRES_PORT,
+                                database='postgres')
 
-        print(connection.get_dsn_parameters(), "\n")
+        print(conn.get_dsn_parameters(), "\n")
 
-        return connection
+        return conn
 
     except (Exception, psycopg2.Error) as error:
         print("Error while connecting to PostgreSQL", error)
@@ -95,9 +96,9 @@ def check_table_exists(table_name):
             return True
     except (Exception, psycopg2.Error) as e:
         # Don't really like this. We must be able to check if the error is actually that the table does not exist
-        print('Table does not exist')
+        print('Table does not exist:', e)
         cursor.close()
-        return False;
+        return False
 
 
 # At every startup we check if the metatable exists in postgres. If not - create it
@@ -125,7 +126,8 @@ def get_db_dimensions(dbname):
 
 
 # Tries to insert vectorhashes and asset_ids into postgres
-# Note that the first check is done on at a time so that we know for later whether or not the vector should be inserted into milvus
+# Note that the first check is done on at a time so that we
+# know for later whether or not the vector should be inserted into milvus
 # There are three cases:
 # 1. Vector hash and asset_id already exists in db\
 #    Nothing should be done

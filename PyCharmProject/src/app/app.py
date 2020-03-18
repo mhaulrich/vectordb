@@ -1,4 +1,3 @@
-import sys
 from flask import Flask, abort, Response
 import json
 from flask import request
@@ -10,21 +9,15 @@ from Milvus_operations import *
 # If running outside docker-compose run with
 # python3 app.py <SQL HOST> <SQL PORT>  <MILVUS_HOST> <MILVUS PORT>
 
-
-print(sys.argv)
-
 if len(sys.argv) == 5:
     postgres_host = sys.argv[1]
     postgres_port = sys.argv[2]
-    setPostGresHost(postgres_host, postgres_port)
+    set_postsres_host(postgres_host, postgres_port)
 
     milvus_host = sys.argv[3]
     milvus_port = sys.argv[4]
-    setMilvusHost(milvus_host, milvus_port)
+    set_milvus_host(milvus_host, milvus_port)
 
-
-print('Postgres connection params:', postgres_host, postgres_port)
-print('Milvus connection params:', milvus_host, milvus_port)
 
 # In outer section of code
 pr = profile.Profile()
@@ -77,6 +70,13 @@ def check_db_integrety():
 def create_new_db():
     db_name = request.args.get('dbname')
     dimensions = int(request.args.get('dimensions'))
+    if check_table_exists(db_name):
+        return -1, 'Error: Vector database with name: ' + db_name + ' already exists'
+
+    # Create in postgres
+    create_vector_table_in_db(db_name, dimensions)
+
+    # Create in Milvus
     (error_code, return_string) = create_vector_db(db_name, dimensions)
     return return_string
 
@@ -243,7 +243,7 @@ def listdba():
     for table_name in tables:
         status, milvus_table = milvus.describe_table(table_name)
         dims = milvus_table.dimension
-        index_file_size = milvus_table.index_file_size
+        # index_file_size = milvus_table.index_file_size
         metric_type = milvus_table.metric_type
         status, num_rows = milvus.get_table_row_count(table_name)
         cursor.execute("SELECT count(*) FROM " + table_name)
@@ -269,6 +269,7 @@ def shutdown():
     pr.dump_stats('profile.pstat')
     shutdown_server()
     return 'Server shutting down...'
+
 
 init_db()
 

@@ -1,5 +1,4 @@
 from milvus import Milvus, IndexType, MetricType
-from DB_operations import *
 import sys
 
 MILVUS_HOST = 'milvus'
@@ -11,11 +10,12 @@ _METRIC_TYPE = MetricType.IP
 global_milvus = None
 
 
-def setMilvusHost(milvus_host, milvus_port):
+def set_milvus_host(milvus_host, milvus_port):
     global MILVUS_HOST
     global MILVUS_PORT
     MILVUS_HOST = milvus_host
     MILVUS_PORT = milvus_port
+    print('Milvus connection params:', milvus_host, milvus_port)
 
 
 def check_table_exists_milvus(table_name):
@@ -28,10 +28,7 @@ def check_table_exists_milvus(table_name):
 # Create new table in our vector db. This consists of two thiings
 # - create table in postgres to hold mapping from vector hash to assets
 # - create table in milvus for the actual vector search
-def create_vector_db(vector_db_name, dimensions, index_type='IVFLAT'):
-    if check_table_exists(vector_db_name):
-        return -1, 'Error: Vector database with name: ' + vector_db_name + ' already exists'
-    create_vector_table_in_db(vector_db_name, dimensions, index_type)
+def create_vector_db(vector_db_name, dimensions):
 
     milvus = get_milvus()
 
