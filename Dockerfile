@@ -12,4 +12,8 @@ RUN pip install --upgrade numpy
 COPY requirements.txt /code/requirements.txt
 RUN pip install -r requirements.txt
 COPY PyCharmProject/src/app .
+
+#Make python print immediately
+ENV PYTHONUNBUFFERED 1
+
 CMD ["flask", "run"]

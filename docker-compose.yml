@@ -4,6 +4,13 @@ services:
     build: .
     ports:
       - "5000:5000"
+    volumes:
+      - ./PyCharmProject/src/app:/code # Mount code to do live changes
+    environment:
+      FLASK_ENV: development # Allows Flask to automatically reload when code changes
+      PYTHONUNBUFFERED: 1
+      VECTORDB_DEBUG: "true"
+
 
   db:
     image: postgres:alpine

@@ -1,4 +1,6 @@
 import psycopg2
+import time
+import os
 
 connection = None
 
@@ -7,9 +9,100 @@ POSTGRES_PORT = '5432'
 
 METATABLE_NAME = 'vectordb_meta'
 
-# In order not to connect to DB to check dimentions every time - we keep a cache
-# For now - we assume that we will never have so many dbs that it is a problem to have this in memory
-db_dimensions_cache = {}
+LIMIT_RETRIES = 10
+
+DEBUG = os.environ.get('VECTORDB_DEBUG') == 'true'
+
+class AssetDatabase:
+    """A class for communication with postgres asset database"""
+    
+    def __init__(self, host, port, user, password, database):
+        self.host = host
+        self.port = port
+        self.user = user
+        self.password = password
+        self.database = database
+        
+        self._connection = None
+        self._cursor = None
+        
+        # In order not to connect to DB to check dimentions every time - we keep a cache
+        # For now - we assume that we will never have so many dbs that it is a problem to have this in memory
+        self._dimensions_cache = {}
+        
+        self.init()
+        
+    def __del__(self):
+        try:
+            self.close()
+        except:
+            pass
+        
+    def _retryOperation(self, operation, operationArgs=[], operationKwargs={}, sleepTime=5, failCallback=None):
+        retries = 0
+        while retries < LIMIT_RETRIES:
+            try:
+                return operation(*operationArgs, **operationKwargs)
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as error:
+                if retries >= LIMIT_RETRIES:
+                    raise error
+                else:
+                    retries += 1
+                    print("Error executing Postgres operation %s: %s. Retrying %d"%(operation, str(error).strip(), retries))
+                    time.sleep(sleepTime)
+                    if failCallback is not None:
+                        failCallback()
+            except (Exception, psycopg2.Error) as error:
+                raise error
+                        
+        
+    def connect(self):
+        """Connect to Postgres database, retrying every 3rd second for up to 10 times."""
+        if not self._connection or self._connection.closed:
+            if DEBUG:
+                print("Connecting to Postgres..")
+            connectArgs = {'user': self.user, 
+                           'password': self.password, 
+                           'host': self.host, 
+                           'port': self.port, 
+                           'database': self.database, 
+                           'connect_timeout': 3}
+            self._connection = self._retryOperation(psycopg2.connect, operationKwargs=connectArgs)
+            if DEBUG:
+                print("Successfully connected")
+                
+    def cursor(self):
+        """Get the current cursor"""
+        if not self._cursor or self._cursor.closed:
+            if not self._connection:
+                self.connect()
+            self._cursor = self._connection.cursor()
+        return self._cursor
+                    
+    def retryingExecute(self, query, queryVars=None):
+        """Carry out a cursor.execute, retrying upon failure every second for up to 10 times"""
+        cursor = self.cursor()
+        if DEBUG:
+            print("Executing \"%s\" with params: %s"%(query,queryVars))
+        self._retryOperation(cursor.execute, [query, queryVars], sleepTime=1, failCallback=self.reset)
+        return cursor
+        
+    def reset(self):
+        """Close connection and reconnect"""
+        self.close()
+        self.connect()
+        
+    def close(self):
+        """Close connection"""
+        if self._connection:
+            self._connection.close()
+            print("PostgreSQL connection is closed")
+        self._connection = None
+
+    def init(self):
+        """Initialize AssetDatabase"""
+        self.connect()
+        
 
 
 def set_postsres_host(postgres_host, postgres_port):
@@ -19,21 +112,25 @@ def set_postsres_host(postgres_host, postgres_port):
     POSTGRES_PORT = postgres_port
     print('Postgres connection params:', postgres_host, postgres_port)
 
-
-def connect_db():
-    try:
-        conn = psycopg2.connect(user='postgres',
-                                password='mysecretpassword',
-                                host=POSTGRES_HOST,
-                                port=POSTGRES_PORT,
-                                database='postgres')
-
-        print(conn.get_dsn_parameters(), "\n")
-
-        return conn
-
-    except (Exception, psycopg2.Error) as error:
-        print("Error while connecting to PostgreSQL", error)
+        
+def connect_db():   
+    retries = 10
+    while True:
+        try:
+            connection = psycopg2.connect(user="postgres",
+                                          password="mysecretpassword",
+                                          host="db",
+                                          port="5432",
+                                          database="postgres")
+            print(connection.get_dsn_parameters(), "\n")
+            return connection
+        except (Exception, psycopg2.Error) as error:
+            if retries == 0:
+                print("Error while connecting to PostgreSQL", error)
+                raise error
+            print("Error while connection to PostgreSQL. Retrying...")
+            retries -= 1
+            time.sleep(1)
 
 
 # Get postgres connection
@@ -187,3 +284,14 @@ def get_assets(dbname, vector_hash):
             asset_ids.append(asset_id)
             row = cursor.fetchone()
     return asset_ids
+
+
+
+testDB = AssetDatabase( user="postgres",
+                        password="mysecretpassword",
+                        host="db",
+                        port="5432",
+                        database="postgres")
+cursor = testDB.cursor()
+cursor.execute("SELECT * FROM pg_catalog.pg_tables")
+print("First rows: %s"%str(cursor.fetchone()))

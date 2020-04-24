@@ -271,7 +271,7 @@ def shutdown():
     return 'Server shutting down...'
 
 
-init_db()
+# init_db()
 
 if __name__ == "__main__":
     app.run(port=5001)

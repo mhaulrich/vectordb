@@ -1,8 +1,9 @@
 # vectordb
 
 ## How to run
-Change working dir in .env before running\
+Change working dir in .env, build, and run
 ```
+export VECTORDB_WD=$(pwd)
 docker-compose build
 docker-compose up
 ```
