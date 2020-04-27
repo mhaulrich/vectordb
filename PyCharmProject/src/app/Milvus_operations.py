@@ -28,7 +28,7 @@ def check_table_exists_milvus(table_name):
 # Create new table in our vector db. This consists of two thiings
 # - create table in postgres to hold mapping from vector hash to assets
 # - create table in milvus for the actual vector search
-def create_vector_db(vector_db_name, dimensions):
+def create_vector_db(vector_db_name, dimensions, index_type):
 
     milvus = get_milvus()
 
@@ -44,7 +44,7 @@ def create_vector_db(vector_db_name, dimensions):
         milvus.create_table(param)
 
         index_param = {
-            'index_type': IndexType.IVFLAT,
+            'index_type': index_type,
             'nlist': 2048
         }
         milvus.create_index(vector_db_name, index_param)
