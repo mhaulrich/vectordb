@@ -114,6 +114,7 @@ def insert_vector():
     pr.enable()
     db_name = request.args.get('dbname')
     vector_with_id = request.json
+    print(vector_with_id)
     if (db_name is None) or (vector_with_id is None):
         abort_missing_parameters('insert', ['dbname'], 'and vector in body')
 
@@ -126,9 +127,9 @@ def insert_vector():
 
     vector_hash = hash_vector(vector)
 
-    vector_should_be_added_to_milvus = insert_vectorhash(db_name, [vector_hash], [asset_id])
+    vector_should_be_added_to_milvus = assetDB.insertVectorHashes(db_name, [vector_hash], [asset_id])
     if vector_should_be_added_to_milvus[0]:
-        insert_into_milvus(db_name, vector_hash, vector)
+        insert_into_milvus(db_name, [vector_hash], [vector])
 
     pr.disable()
     return 'hej'
@@ -228,6 +229,7 @@ def listdba():
         # index_file_size = milvus_table.index_file_size
         metric_type = milvus_table.metric_type
         status, num_rows = milvus.get_table_row_count(table_name)
+        print(status,num_rows)
     
         table_info = {'name': table_name, 'dimensions': dims, 'metric_type': str(metric_type), 'no_vectors': num_rows, 'no_assets' : num_assets}
         table_infos.append(table_info)

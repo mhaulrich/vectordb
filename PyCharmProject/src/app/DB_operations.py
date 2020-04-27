@@ -42,7 +42,8 @@ class AssetDatabase:
                     raise error
                 else:
                     retries += 1
-                    print("Error executing Postgres operation %s: %s. Retrying %d"%(operation, str(error).strip(), retries))
+                    print("Error executing Postgres operation %s: %s."%(operation, str(error).strip()))
+                    print("Retrying %d"%retries)
                     time.sleep(sleepTime)
                     if failCallback is not None:
                         failCallback()
@@ -208,8 +209,10 @@ class AssetDatabase:
     def getNumberOfAssets(self, tablename):
         """Returns the number (int) of assets 'tablename' contains. If tablename is of type
         List, a list of the number of assets for each table name in the list."""
+        returnAsList = True
         if type(tablename) is not list:
             tablename = [tablename]
+            returnAsList = False
         counts = []
         cursor = self.cursor()
         for table in tablename:
@@ -217,7 +220,7 @@ class AssetDatabase:
             row = cursor.fetchone()
             counts.append(row[0])
         cursor.close()
-        if len(counts) == 1:
+        if not returnAsList:
             return counts[0]
         else:
             return counts
