@@ -76,7 +76,8 @@ def hash_vector6(vector):
     m = marshal.dumps(nparray_int)
     md5_bytes = hashlib.md5(m).digest()
 
-    hash = int.from_bytes(md5_bytes[:8], 'little', signed=True)
+    #Milvus needs ids to be positive, but of type signed-int,
+    hash = abs(int.from_bytes(md5_bytes[:8], 'little', signed=True))
     return hash
 
 
