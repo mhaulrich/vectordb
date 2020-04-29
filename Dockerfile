@@ -17,3 +17,4 @@ COPY PyCharmProject/src/app .
 ENV PYTHONUNBUFFERED 1
 
 CMD ["flask", "run"]
+#CMD gunicorn --bind 0.0.0.0:5000 wsgi

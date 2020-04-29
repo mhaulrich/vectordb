@@ -122,19 +122,22 @@ def insert():
 
     # Find hashes and vectors that should be added to milvus
     # We do this in a dict to avoid actually adding the same vector more than once
-    vector_should_be_added_to_index = assetDB.insertVectorHashes(db_name, vector_hashes, assets)
+    vector_hash_exists = assetDB.insertVectorHashes(db_name, vector_hashes, assets)
     index_vectors = {}
-    for i, add in enumerate(vector_should_be_added_to_index):
-        if add:
+    for i, exists in enumerate(vector_hash_exists):
+        if not exists:
             index_vectors[vector_hashes[i]] = vectors[i]
     if DEBUG:
         print('Adding: ' + str(len(index_vectors)) + ' to Index')
 
     if len(index_vectors) > 0:
-        vectorIndex.insert(db_name, list(index_vectors.values()), list(index_vectors.keys()))
-        
-    # TODO: If something breaks in vectorIndex.insert, we have a bad situation
-    # where assetDB say the vector exists, but it actually dosn't in vectorIndex
+        try:
+            vectorIndex.insert(db_name, list(index_vectors.values()), list(index_vectors.keys()))
+            assetDB.commit() #Finish the insert to assetDB
+        except Exception as e:
+            print("Something failed during insert: %s"%str(e))
+            assetDB.rollback() #Roll back the insert to assetDB
+            raise e
 
     pr.disable()
     return 'Successfully inserted %d vectors'%len(vectors)
@@ -147,7 +150,7 @@ def lookup_exact():
     vector = vector_with_id['vector']
     vector_hash = hash_vector(vector)
     assets_ids = assetDB.getAssets(db_name, vector_hash)
-    assets_ids_json = json.dumps(assets_ids)
+    assets_ids_json = json.dumps(assets_ids, indent=3)
     return assets_ids_json
 
 
@@ -174,19 +177,31 @@ def lookup():
         this_result = {'distance': distance, 'asset_ids': asset_ids}
         results.append(this_result)
 
-    results_json = json.dumps(results)
+    results_json = json.dumps(results, indent=3)
     return results_json
 
 
+@app.route('/sampledb', methods=['GET'])
+def sampledb():
+    """Get a sample of 'n' rows from 'dbname'"""
+    db_name = request.args.get('dbname')
+    count = int(request.args.get('n', 50))
+    rows = assetDB.getSample(db_name, count)
+    if DEBUG:
+        print("%-22s %s"%(("Hash","Asset")))
+        for row in rows:
+            print("%-22s %s"%row)
+    return json.dumps(rows, indent=3)
+
 @app.route('/listdbs', methods=['GET'])
-def listdba():
+def listdbs():
     """Describe the existing tables"""
     tables = assetDB.getExistingTables()
     asset_counts = assetDB.getNumberOfAssets(tables)
     table_infos = vectorIndex.describe(tables)
     for table_info, numAssets in zip(table_infos, asset_counts):
         table_info['no_assets'] = numAssets
-    return json.dumps(table_infos)
+    return json.dumps(table_infos, indent=3)
 
 
 def shutdown_server():
@@ -205,5 +220,5 @@ def shutdown():
 
 # init_db()
 
-if __name__ == "__main__":
-    app.run(port=5001)
+# if __name__ == "__main__":
+#     app.run(port=5001)

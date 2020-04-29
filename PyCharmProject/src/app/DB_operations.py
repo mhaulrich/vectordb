@@ -48,14 +48,14 @@ class AssetDatabase:
                     if failCallback is not None:
                         failCallback()
             except (Exception, psycopg2.Error) as error:
-                raise error
+                raise AssetDatabaseError("Could not execute Postgres operation", error)
                         
         
     def connect(self):
         """Connect to Postgres database, retrying every 3rd second for up to 10 times."""
         if not self._connection or self._connection.closed:
             if DEBUG:
-                print("Connecting to Postgres..")
+                print("Connecting to Postgres, %s:%s"%(self.host,self.port))
             connectArgs = {'user': self.user, 
                            'password': self.password, 
                            'host': self.host, 
@@ -64,7 +64,7 @@ class AssetDatabase:
                            'connect_timeout': 3}
             self._connection = self._retryOperation(psycopg2.connect, operationKwargs=connectArgs)
             if DEBUG:
-                print("Successfully connected")
+                print("Successfully connected to Postgres")
                 
     def cursor(self):
         """Get the current cursor"""
@@ -227,18 +227,20 @@ class AssetDatabase:
     
     def insertVectorHashes(self, dbname, vector_hashes, asset_ids):
         """Tries to insert vectorhashes and asset_ids into postgres
-        Note that the first check is done on at a time so that we
-        know for later whether or not the vector should be inserted into milvus
-        There are three cases:
+        Note that the first check is done one at a time so that we
+        know for later whether or not the vector should be inserted into vector
+        index. There are three cases:
             1. Vector hash and asset_id already exists in db\
                 Nothing should be done
             2. Vector hash exists but this asset_id does not
                 (Vector hash, asset_id) should be inserted into db
-                No vector should be added to Milvus as it is already there
+                No vector should be added to vector index as it is already there
             3. New vector hash.
                 (Vector hash, asset_id) should be inserted into db
-                Vector should be inserted into milvus"""
-        insert_vector_into_milvus = []
+                Vector should be inserted into vector index
+        This call must be followed by a commit() call to be confirmed or a
+        rollback() call to be cancelled."""
+        vector_hash_exists = []
     
         # Create list of tuples to use in sql
         list_of_both = []
@@ -250,10 +252,9 @@ class AssetDatabase:
                 cursor.execute('SELECT * FROM ' + dbname + ' WHERE vector_hash = %s', (vector_hash,))
             except (Exception, psycopg2.Error) as error:
                 print("DB does not exist", error)
-                self.rollback()
                 cursor.close()
                 return
-            insert_vector_into_milvus.append(cursor.rowcount == 0)
+            vector_hash_exists.append(cursor.rowcount != 0)
     
         # The actual inserts we do all at once
         # Because of primary key contraints we can simple add the vector_hash asset_id pair to the db
@@ -263,10 +264,8 @@ class AssetDatabase:
             cursor.executemany('INSERT INTO ' + dbname + ' (vector_hash, asset_id) VALUES (%s, %s) ON CONFLICT DO NOTHING', list_of_both)
         except (Exception, psycopg2.Error) as error:
             print("Row already exists in db - this is ok", error)
-            self.rollback()  
-        cursor.close()
-        self.commit()  
-        return insert_vector_into_milvus
+        cursor.close()        
+        return vector_hash_exists
     
     
     def getAssets(self, dbname, vector_hash):
@@ -277,3 +276,22 @@ class AssetDatabase:
             asset_ids.append(row[0])
         cursor.close()
         return asset_ids
+    
+    def getSample(self, dbname, numRows):
+        cursor = self.cursor()
+        cursor.execute('SELECT vector_hash, asset_id FROM %s LIMIT %d'%(dbname,numRows))
+        rows = [(row[0],row[1]) for row in cursor]
+        cursor.close()
+        return rows
+        
+
+
+class AssetDatabaseError(Exception):
+    def __init__(self, message, suberror=None):
+        self.message = None
+        self.suberror = None
+    def __str__(self):
+        if self.suberror:
+            return 'AssetDatabaseError: %s. Suberror: %s. '%(self.message, self.suberror)
+        else:
+            return 'AssetDatabaseError: %s. '%(self.message, self.suberror)

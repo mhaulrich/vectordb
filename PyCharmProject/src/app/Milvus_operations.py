@@ -37,13 +37,15 @@ class VectorIndex:
         self._milvus = Milvus()
         param = {'host': self.host, 'port': self.port}
         if DEBUG:
-            print("Connecting to Milvus %s:%s"%(self.host,self.port))
+            print("Connecting to Milvus, %s:%s"%(self.host,self.port))
         
         retries = 0
         while retries < LIMIT_RETRIES:
             try:
                 status = self._milvus.connect(**param)
                 if status.OK():
+                    if DEBUG:
+                        print("Successfully connected to Milvus")
                     return self._milvus
                 print("Bad Milvus status code: %s"%str(status))
             except NotConnectError as err:
