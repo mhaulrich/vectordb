@@ -10,33 +10,40 @@ docker-compose up
 
 ## Example commands
 
-Check db integrity (will also list created DBs):
+Check db integrity (will also print created DBs on server):
 ```
-curl 0.0.0.0:5000/checkintegrity
+curl localhost:5000/check
 ```
-Create a new DB with name and dimenions
-```
-curl "0.0.0.0:5000/createdb?dbname=test&dimensions=8"
-```
-Delete DB
-```
-curl 0.0.0.0:5000/deletedb?dbname=test
-```
-List databases
-```
-curl 0.0.0.0:5000/listdbs | jq
 
+List all databases:
 ```
-Insert vector into DB
+curl localhost:5000/databases
 ```
-curl -H 'Content-Type: application/json' -X PUT -d '{"name": "v1", "vector": [0.00793861557915232, 0.9997302132320715, 0.37542373014507036, 0.6712801110144234, 0.35517993228837497, 0.4425925168063203, 0.48268047072393094, 0.15620825516058134]}' "0.0.0.0:5000/insert?dbname=test"
+Create a new DB with name and dimenions:
 ```
+curl localhost:5000/databases -F dbname=test -F dimensions=3
+```
+Delete DB:
+```
+curl localhost:5000/databases/test -X DELETE
+```
+
+List points in a DB:
+```
+curl 'localhost:5000/databases/test/points?count=5&offset=0'
+```
+
+Insert vector(s) into DB
+```
+curl localhost:5000/databases/test/ -H 'Content-Type: application/json' -X POST -d '{"assets": [["myAsset"]], "vectors": [[1,2,3]]}'
+```
+
 Exact search for vector
 ```
-curl -H 'Content-Type: application/json' -X PUT -d '{"vector": [0.00793861557915232, 0.9997302132320715, 0.37542373014507036, 0.6712801110144234, 0.35517993228837497, 0.4425925168063203, 0.48268047072393094, 0.15620825516058134]}' "0.0.0.0:5000/lookupexact?dbname=test"
+curl localhost:5000/databases/test/lookup/ -H 'Content-Type: application/json' -X POST -d '{"exact": true, "vectors": [[1,2,3]]}'
 ```
 NN (and exact) search for vector
 ```
-curl -H 'Content-Type: application/json' -X PUT -d '{"vector": [0.00793861557915232, 0.9997302132320715, 0.37542373014507036, 0.6712801110144234, 0.35517993228837497, 0.4425925168063203, 0.48268047072393094, 0.15620825516058134]}' "0.0.0.0:5000/lookup?dbname=test"
+curl localhost:5000/databases/test/lookup/ -H 'Content-Type: application/json' -X POST -d '{"exact": false, "vectors": [[1,2,3]]}'
 ```
 

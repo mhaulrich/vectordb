@@ -231,8 +231,8 @@ class Lookup(Resource):
                 print("Got %d neighbours for hash %d"%(len(index_result),vector_hash))
                 for neighbour in index_result: 
                     neighbour['assets'] = assetDB.getAssets(db_name, neighbour['id'])
-                    if neighbour['id'] == vector_hash: #Exactly the same - override distance
-                        neighbour['distance'] = 0.0
+                    # if neighbour['id'] == vector_hash: #Exactly the same - override distance
+                    #     neighbour['distance'] = 0.0
                 index_result.reverse() #For some reason milvus gives the furthest away first
                 vectorResult = {
                     'neighbours': index_result, 
