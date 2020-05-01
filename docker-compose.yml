@@ -8,9 +8,10 @@ services:
       - ./PyCharmProject/src/app:/code # Mount code to do live changes
     environment:
       FLASK_ENV: development # Allows Flask to automatically reload when code changes
-      PYTHONUNBUFFERED: 1
+      FLASK_APP: app.py
+      FLASK_RUN_HOST: 0.0.0.0
       VECTORDB_DEBUG: "true"
-
+    command: flask run #Override gunicorn webserver with Flask while developping.
 
   db:
     image: postgres:alpine

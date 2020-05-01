@@ -120,11 +120,10 @@ class VectorIndex:
             raise VectorIndexError("Could not insert: %s"%status)
         return ids
 
-
     def lookup(self, tableName, vector, k=10):
         """Lookup the 'k' nearest neighbours to the query vectors."""
         milvus = self.milvus()
-        vector_list = self.make2DFloat(vector)
+        vector_list = self.make2DFloat(vector).tolist()
         print("Looking up %d nearest neighbours in table '%s' for query points: %s"%(k,tableName,vector))
         param = {
             'table_name': tableName,
@@ -151,8 +150,12 @@ class VectorIndex:
             resultsArr.append(neighbourResults)
         return resultsArr
     
-    def describe(self, tables):
+    def describeTables(self, tables):
         """Describe the tables specified by 'tables'."""
+        returnList = True
+        if type(tables) == str:
+            tables = [tables]
+            returnList = False
         milvus = self.milvus()
         table_infos = []
         for table_name in tables:
@@ -162,12 +165,19 @@ class VectorIndex:
             dims = milvus_table.dimension
             # index_file_size = milvus_table.index_file_size
             metric_type = milvus_table.metric_type
-            status, num_rows = milvus.get_table_row_count(table_name)
+            status, num_rows = milvus.count_table(table_name)
             if not status.OK():
                 raise VectorIndexError("Could not get number of rows for table '%s'': %s"%(table_name,status))
             table_info = {'name': table_name, 'dimensions': dims, 'metric_type': str(metric_type), 'no_vectors': num_rows}
             table_infos.append(table_info)
-        return table_infos
+        if returnList:
+            return table_infos
+        else:
+            return table_infos[0]
+    
+    def describePoint(self, tableName, pointID):
+        milvus = self.milvus()
+        return milvus.get_vector_by_id(tableName, pointID)
         
     def make2DFloat(self, vector):
         vector = np.array(vector, dtype=float)
@@ -183,4 +193,4 @@ class VectorIndexError(Exception):
         if self.suberror:
             return 'VectorIndexError: %s. Suberror: %s. '%(self.message, self.suberror)
         else:
-            return 'VectorIndexError: %s. '%(self.message, self.suberror)
+            return 'VectorIndexError: %s. '%(self.message)

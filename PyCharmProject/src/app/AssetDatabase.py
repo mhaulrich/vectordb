@@ -225,19 +225,11 @@ class AssetDatabase:
         else:
             return counts
     
-    def insertVectorHashes(self, dbname, vector_hashes, asset_ids):
-        """Tries to insert vectorhashes and asset_ids into postgres
-        Note that the first check is done one at a time so that we
-        know for later whether or not the vector should be inserted into vector
-        index. There are three cases:
-            1. Vector hash and asset_id already exists in db\
-                Nothing should be done
-            2. Vector hash exists but this asset_id does not
-                (Vector hash, asset_id) should be inserted into db
-                No vector should be added to vector index as it is already there
-            3. New vector hash.
-                (Vector hash, asset_id) should be inserted into db
-                Vector should be inserted into vector index
+    def insertVectorHashes(self, dbname, vector_hashes, assets):
+        """Tries to insert vectorhashes and assets into postgres
+        Returns a boolean list indicating whether the vector_hash already 
+        exists. This is useful for determining whether or not a vector should 
+        be inserted into vector index.
         This call must be followed by a commit() call to be confirmed or a
         rollback() call to be cancelled."""
         vector_hash_exists = []
@@ -247,7 +239,7 @@ class AssetDatabase:
         # First check if vector hashes exist already
         cursor = self.cursor()
         for i, vector_hash in enumerate(vector_hashes):
-            list_of_both.append((vector_hash, asset_ids[i]))
+            list_of_both.append((vector_hash, assets[i]))
             try:
                 cursor.execute('SELECT * FROM ' + dbname + ' WHERE vector_hash = %s', (vector_hash,))
             except (Exception, psycopg2.Error) as error:
@@ -269,6 +261,7 @@ class AssetDatabase:
     
     
     def getAssets(self, dbname, vector_hash):
+        """Return a list of assets associated with the provided vector_hash"""
         cursor = self.cursor()
         cursor.execute('SELECT asset_id FROM ' + dbname + ' WHERE vector_hash = %s', (vector_hash,))
         asset_ids = []
@@ -277,9 +270,9 @@ class AssetDatabase:
         cursor.close()
         return asset_ids
     
-    def getSample(self, dbname, numRows):
+    def getSample(self, dbname, numRows, offset=0):
         cursor = self.cursor()
-        cursor.execute('SELECT vector_hash, asset_id FROM %s LIMIT %d'%(dbname,numRows))
+        cursor.execute('SELECT vector_hash, asset_id FROM %s ORDER BY vector_hash LIMIT %d OFFSET %d'%(dbname,numRows,offset))
         rows = [(row[0],row[1]) for row in cursor]
         cursor.close()
         return rows
@@ -294,4 +287,4 @@ class AssetDatabaseError(Exception):
         if self.suberror:
             return 'AssetDatabaseError: %s. Suberror: %s. '%(self.message, self.suberror)
         else:
-            return 'AssetDatabaseError: %s. '%(self.message, self.suberror)
+            return 'AssetDatabaseError: %s. '%(self.message)
