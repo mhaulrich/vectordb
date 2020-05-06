@@ -42,7 +42,7 @@ Exact search for vector
 ```
 curl localhost:5000/databases/test/lookup/ -H 'Content-Type: application/json' -X POST -d '{"exact": true, "vectors": [[1,2,3]]}'
 ```
-NN (and exact) search for vector
+NN search for vector
 ```
 curl localhost:5000/databases/test/lookup/ -H 'Content-Type: application/json' -X POST -d '{"exact": false, "vectors": [[1,2,3]]}'
 ```
