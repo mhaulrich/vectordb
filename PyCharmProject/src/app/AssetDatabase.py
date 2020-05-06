@@ -136,7 +136,9 @@ class AssetDatabase:
     
     def createVectorTable(self, name, dims, index_type):
         """Create new vector table in postgres.
-        This creates the table and also adds information about it to the meta table"""
+        This creates the table and also adds information about it to the meta table.
+        This call must be followed by a commit() call to be confirmed or a
+        rollback() call to be cancelled."""
         cursor = self.cursor()
         # Write info about new vector table in meta
         cursor.execute("INSERT INTO " + METATABLE_NAME + " (name, dims, index_type) VALUES (%s, %s, %s)",
@@ -151,7 +153,6 @@ class AssetDatabase:
                   )
                   """)
         cursor.close()
-        self.commit()
         
     def deleteVectorTable(self, name):
         """Deletes a vector table in postgres.

@@ -1,16 +1,11 @@
-FROM python:3.7-alpine
+FROM python:3.7-buster
 
 WORKDIR /code
-RUN apk add --no-cache gcc g++ musl-dev linux-headers postgresql-dev 
 
 # Setup 
-# These dependencies are used in something in requirements
-# They are installed here in order to create a docker layer that includes
-# then because it kept getting reinstalled and it took forever.
-RUN pip install --upgrade grpcio-tools
-RUN pip install --upgrade numpy
 COPY requirements.txt /code/requirements.txt
-RUN pip install -r requirements.txt
+RUN 	pip install --upgrade numpy && \
+	pip install -r requirements.txt
 
 COPY PyCharmProject/src/app .
 

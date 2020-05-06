@@ -32,6 +32,10 @@ List points in a DB:
 ```
 curl 'localhost:5000/databases/test/points?count=5&offset=0'
 ```
+Get specific point in a DB:
+```
+curl localhost:5000/databases/test/points/6387894434316547108/
+```
 
 Insert vector(s) into DB
 ```

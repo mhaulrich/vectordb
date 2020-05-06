@@ -22,7 +22,7 @@ class VectorIndex:
         self.host = host
         self.port = port
         self._indexFileSize = 32
-        self._metricType = MetricType.IP
+        self._metricType = MetricType.L2
         self._milvus =  None
         
         self.init()
@@ -67,7 +67,7 @@ class VectorIndex:
     def tableExists(self, tableName):
         """Check if a vector table/index exists"""
         milvus = self.milvus()
-        status, ok = milvus.has_table(tableName)
+        status, ok = milvus.has_collection(tableName)
         return ok 
 
 
@@ -82,26 +82,25 @@ class VectorIndex:
         else:
             milvus = self.milvus()
             param = {
-                'table_name': tableName,
+                'collection_name': tableName,
                 'dimension': dimensions,
                 'index_file_size': self._indexFileSize,
                 'metric_type': self._metricType
             }
-            table_status = milvus.create_table(param)
+            table_status = milvus.create_collection(param)
             if not table_status.OK():
                 raise VectorIndexError("Could not create table '%s': %s."%(tableName,table_status))
     
             index_param = {
-                'index_type': index_type,
                 'nlist': 2048
             }
-            index_status = milvus.create_index(tableName, index_param)
+            index_status = milvus.create_index(tableName, index_type, index_param)
             if not index_status.OK():
                 raise VectorIndexError("Could not create index: %s."%index_status)
 
     def deleteTable(self, tableName):
         milvus = self.milvus()
-        status = milvus.delete_table(tableName)
+        status = milvus.delete_collection(tableName)
         if not status.OK():
             raise VectorIndexError("Could not delete table '%s': %s."%(tableName,status))
 
@@ -125,59 +124,55 @@ class VectorIndex:
         milvus = self.milvus()
         vector_list = self.make2DFloat(vector).tolist()
         print("Looking up %d nearest neighbours in table '%s' for query points: %s"%(k,tableName,vector))
-        param = {
-            'table_name': tableName,
-            'query_records': vector_list,
-            'top_k': k,
-            'nprobe': 10
-        }
-    
-        status, queryResults = milvus.search_vectors(**param)
+        
+        params = {'nprobe': 16}
+        status, queryResults = milvus.search(tableName, k, vector_list, params=params)
         if not status.OK():
             raise VectorIndexError("Could not lookup: %s"%status)
         resultsArr = []
-        for queryResult in queryResults:
-            known_results = {}
+        
+        for id_list, dis_list in zip(queryResults.id_array, queryResults.distance_array):
             neighbourResults = []
-            for neighbour in queryResult:
-                if neighbour.id in known_results:
-                    continue
-                known_results[neighbour.id] = 1
+            for nid, distance in zip(id_list, dis_list):
                 neighbourResults.append({
-                    'distance': neighbour.distance, 
-                    'id': neighbour.id
+                    'distance': distance, 
+                    'id': nid
                     })
             resultsArr.append(neighbourResults)
         return resultsArr
     
     def describeTables(self, tables):
         """Describe the tables specified by 'tables'."""
-        returnList = True
+        returnAsList = True
         if type(tables) == str:
             tables = [tables]
-            returnList = False
+            returnAsList = False
         milvus = self.milvus()
         table_infos = []
         for table_name in tables:
-            status, milvus_table = milvus.describe_table(table_name)
+            status, milvus_table = milvus.describe_collection(table_name)
+            print("Collection info: ",milvus.collection_info(table_name))
+            print("Collection desc: ",milvus.describe_collection(table_name))
+            print("Index desc: ",milvus.describe_index(table_name))
             if not status.OK():
                 raise VectorIndexError("Could not describe table '%s'': %s"%(table_name,status))        
             dims = milvus_table.dimension
             # index_file_size = milvus_table.index_file_size
             metric_type = milvus_table.metric_type
-            status, num_rows = milvus.count_table(table_name)
+            status, num_rows = milvus.count_collection(table_name)
             if not status.OK():
                 raise VectorIndexError("Could not get number of rows for table '%s'': %s"%(table_name,status))
             table_info = {'name': table_name, 'dimensions': dims, 'metric_type': str(metric_type), 'no_vectors': num_rows}
             table_infos.append(table_info)
-        if returnList:
+        if returnAsList:
             return table_infos
         else:
             return table_infos[0]
     
     def describePoint(self, tableName, pointID):
         milvus = self.milvus()
-        return milvus.get_vector_by_id(tableName, pointID)
+        _, point = milvus.get_vector_by_id(tableName, pointID)
+        return point
         
     def make2DFloat(self, vector):
         vector = np.array(vector, dtype=float)

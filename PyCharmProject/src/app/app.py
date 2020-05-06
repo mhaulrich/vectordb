@@ -114,7 +114,13 @@ class DatabaseList(Resource):
         # Create in postgres
         assetDB.createVectorTable(db_name, dimensions, index_type)
         # Create in Milvus
-        vectorIndex.createTable(db_name, dimensions, IndexType.IVFLAT)
+        try:
+            vectorIndex.createTable(db_name, dimensions, IndexType.IVFLAT)
+            assetDB.commit()
+        except Exception as e:
+            print("Something failed during table creation: %s"%str(e))
+            assetDB.rollback() #Roll back the insert to assetDB
+            raise e
         # Get a description back
         table_info = vectorIndex.describeTables(db_name)
         table_info["no_assets"]: 0
@@ -136,9 +142,20 @@ class Database(Resource):
     def delete(self, db_name):
         """Delete a database
         - curl http://localhost:5000/databases/test -X DELETE """
-        check_abort_missing_db(db_name)
-        vectorIndex.deleteTable(db_name)
-        assetDB.deleteVectorTable(db_name)
+        if not vectorIndex.tableExists(db_name) and not assetDB.tableExists(db_name):
+            abort(Response("ERROR: Table '%s' does not exist in either asset database or vector index."%(db_name), 404))
+        errMsgs = []
+        try:
+            vectorIndex.deleteTable(db_name)
+        except Exception as e:
+            errMsgs.append(str(e))
+        try:
+            assetDB.deleteVectorTable(db_name)
+        except Exception as e:
+            errMsgs.append(str(e))
+        if len(errMsgs) > 0:
+            print(errMsgs)
+            return 'Warning: the following errors occurred during delete:\n'+'\n'.join(errMsgs), 204
         return '', 204
     
     def post(self, db_name):
@@ -207,7 +224,11 @@ class Point(Resource):
 
     def get(self, db_name, point_hash):
         """Get point and assets for a provided point_hash"""
-        return vectorIndex.describePoint(db_name, point_hash)
+        return {
+            'id': point_hash,
+            'vector': vectorIndex.describePoint(db_name, int(point_hash)),
+            'assets': assetDB.getAssets(db_name, point_hash)
+            }
     #TODO:
     # def delete(self, db_name, point_hash):
     #     "", 204
@@ -242,7 +263,6 @@ class Lookup(Resource):
                     neighbour['assets'] = assetDB.getAssets(db_name, neighbour['id'])
                     # if neighbour['id'] == vector_hash: #Exactly the same - override distance
                     #     neighbour['distance'] = 0.0
-                index_result.reverse() #For some reason milvus gives the furthest away first
                 vectorResult = {
                     'neighbours': index_result, 
                     'queryid': vector_hash
