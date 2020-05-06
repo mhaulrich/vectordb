@@ -116,11 +116,11 @@ class DatabaseList(Resource):
         # Create in Milvus
         try:
             vectorIndex.createTable(db_name, dimensions, IndexType.IVFLAT)
-            assetDB.commit()
         except Exception as e:
             print("Something failed during table creation: %s"%str(e))
             assetDB.rollback() #Roll back the insert to assetDB
             raise e
+        assetDB.commit()
         # Get a description back
         table_info = vectorIndex.describeTables(db_name)
         table_info["no_assets"]: 0
@@ -155,7 +155,7 @@ class Database(Resource):
             errMsgs.append(str(e))
         if len(errMsgs) > 0:
             print(errMsgs)
-            return 'Warning: the following errors occurred during delete:\n'+'\n'.join(errMsgs), 204
+            return 'Warning: the following errors occurred during delete: '+' | '.join(errMsgs), 200
         return '', 204
     
     def post(self, db_name):

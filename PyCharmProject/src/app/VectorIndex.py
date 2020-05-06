@@ -89,20 +89,20 @@ class VectorIndex:
             }
             table_status = milvus.create_collection(param)
             if not table_status.OK():
-                raise VectorIndexError("Could not create table '%s': %s."%(tableName,table_status))
+                raise VectorIndexError("Could not create table '%s': %s."%(tableName,table_status.message))
     
             index_param = {
                 'nlist': 2048
             }
             index_status = milvus.create_index(tableName, index_type, index_param)
             if not index_status.OK():
-                raise VectorIndexError("Could not create index: %s."%index_status)
+                raise VectorIndexError("Could not create index: %s."%index_status.message)
 
     def deleteTable(self, tableName):
         milvus = self.milvus()
-        status = milvus.delete_collection(tableName)
+        status = milvus.drop_collection(tableName)
         if not status.OK():
-            raise VectorIndexError("Could not delete table '%s': %s."%(tableName,status))
+            raise VectorIndexError("Could not delete table '%s': %s."%(tableName,status.message))
 
 
     def insert(self, tableName, vectors, ids=None):
@@ -116,7 +116,7 @@ class VectorIndex:
         milvus = self.milvus()
         status, ids = milvus.insert(tableName, records=vectors, ids=ids)
         if not status.OK():
-            raise VectorIndexError("Could not insert: %s"%status)
+            raise VectorIndexError("Could not insert: %s"%status.message)
         return ids
 
     def lookup(self, tableName, vector, k=10):
@@ -128,7 +128,7 @@ class VectorIndex:
         params = {'nprobe': 16}
         status, queryResults = milvus.search(tableName, k, vector_list, params=params)
         if not status.OK():
-            raise VectorIndexError("Could not lookup: %s"%status)
+            raise VectorIndexError("Could not lookup: %s"%status.message)
         resultsArr = []
         
         for id_list, dis_list in zip(queryResults.id_array, queryResults.distance_array):
@@ -152,14 +152,14 @@ class VectorIndex:
         for table_name in tables:
             status, milvus_table = milvus.describe_collection(table_name)
             if not status.OK():
-                raise VectorIndexError("Could not describe table '%s'': %s"%(table_name,status))
+                raise VectorIndexError("Could not describe table '%s'': %s"%(table_name,status.message))
             status, milvus_idx = milvus.describe_index(table_name)
             if not status.OK():
-                raise VectorIndexError("Could not describe index '%s'': %s"%(table_name,status))   
+                raise VectorIndexError("Could not describe index '%s'': %s"%(table_name,status.message))   
             # index_file_size = milvus_table.index_file_size
             status, num_rows = milvus.count_collection(table_name)
             if not status.OK():
-                raise VectorIndexError("Could not get number of rows for table '%s'': %s"%(table_name,status))
+                raise VectorIndexError("Could not get number of rows for table '%s'': %s"%(table_name,status.message))
             print(milvus_idx)
             table_info = {
                 'name': table_name, 
