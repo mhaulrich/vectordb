@@ -69,16 +69,21 @@ parser_newDB = reqparse.RequestParser()
 parser_newDB.add_argument('dbname', type=str, required=True, help='Name of the database (str)')
 parser_newDB.add_argument('dimensions', type=int, required=True, help='Dimensionality of the database (int)')
 
+# testparser.add_argument('list', type=float, required=True, action='append', help='test list input')
+# testparser.add_argument('array', type=list, required=True, action='append', help='test 2d array input')
+# testparser.add_argument('stringlist', type=str, required=True, action='append', help='test string list input')
+        
+
 parser_newPoint = reqparse.RequestParser()
-parser_newPoint.add_argument('vectors', type=list, required=True, help='List of vectors to insert in database')
-parser_newPoint.add_argument('assets', type=list, required=True, help='List of associated assets to insert in database')
+parser_newPoint.add_argument('vectors', type=list, action='append', required=True, help='List of vectors to insert in database')
+parser_newPoint.add_argument('assets', type=str, action='append', required=True, help='List of associated assets to insert in database')
 
 parser_listPoints = reqparse.RequestParser()
 parser_listPoints.add_argument('count', default=10, type=int, required=False, help='Number of points to return')
 parser_listPoints.add_argument('offset', default=0, type=int, required=False, help='Offset in point query')
 
 parser_lookup = reqparse.RequestParser()
-parser_lookup.add_argument('vectors', type=list, required=True, help='List of vectors to lookup in database')
+parser_lookup.add_argument('vectors', type=list, action='append', required=True, help='List of vectors to lookup in database')
 parser_lookup.add_argument('count', default=10, type=int, required=False, help='Number of nearest neighbours to return')
 parser_lookup.add_argument('exact', default=False, type=bool, required=False, help='Only search for exact matches (distance=0)')
 
@@ -149,6 +154,8 @@ class Database(Resource):
                 Vector should be inserted into vector index"""      
         pr.enable()
         args = parser_newPoint.parse_args()
+        if DEBUG:
+            print("Incoming args:\n%s"%args)
         vectors = vectorIndex.make2DFloat(args['vectors'])
         assets = args['assets']
         if DEBUG:
@@ -211,6 +218,8 @@ class Lookup(Resource):
     def post(self, db_name):
         """Lookup the nearest neighbours to the vectors provided."""
         args = parser_lookup.parse_args()
+        if DEBUG:
+            print("Incoming args:\n%s"%args)
         count = args['count']
         vectors = vectorIndex.make2DFloat(args['vectors'])
         exact = args['exact']
@@ -277,6 +286,24 @@ class Shutdown(Resource):
         func()
         return 'Server shutting down...'
     
+class Test(Resource):
+    """Rest interface for shutting down database"""
+    
+    def post(self):
+        import numpy as np
+        testparser = reqparse.RequestParser(bundle_errors=False, )
+        testparser.add_argument('list', type=float, required=True, action='append', help='test list input')
+        testparser.add_argument('array', type=list, required=True, action='append', help='test 2d array input')
+        testparser.add_argument('stringlist', type=str, required=True, action='append', help='test string list input')
+        # testparser.add_argument('number', type=float, required=True, help='test float input')
+        # testparser.add_argument('array', type=np.array, required=False, help='test numpy array input')
+        args = testparser.parse_args()
+        
+        print(args)
+        return args 
+        
+
+    
 
 api.add_resource(DatabaseList, '/databases/')
 api.add_resource(Database, '/databases/<db_name>/')
@@ -285,4 +312,5 @@ api.add_resource(Point, '/databases/<db_name>/points/<point_hash>/')
 api.add_resource(Lookup, '/databases/<db_name>/lookup/')
 api.add_resource(Check, '/check/')
 api.add_resource(Shutdown, '/shutdown/')
+api.add_resource(Test, '/test/')
 

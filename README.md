@@ -35,7 +35,7 @@ curl 'localhost:5000/databases/test/points?count=5&offset=0'
 
 Insert vector(s) into DB
 ```
-curl localhost:5000/databases/test/ -H 'Content-Type: application/json' -X POST -d '{"assets": [["myAsset"]], "vectors": [[1,2,3]]}'
+curl localhost:5000/databases/test/ -H 'Content-Type: application/json' -X POST -d '{"assets": ["myAsset"], "vectors": [[1,2,3]]}'
 ```
 
 Exact search for vector
