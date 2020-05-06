@@ -151,18 +151,26 @@ class VectorIndex:
         table_infos = []
         for table_name in tables:
             status, milvus_table = milvus.describe_collection(table_name)
-            print("Collection info: ",milvus.collection_info(table_name))
-            print("Collection desc: ",milvus.describe_collection(table_name))
-            print("Index desc: ",milvus.describe_index(table_name))
             if not status.OK():
-                raise VectorIndexError("Could not describe table '%s'': %s"%(table_name,status))        
-            dims = milvus_table.dimension
+                raise VectorIndexError("Could not describe table '%s'': %s"%(table_name,status))
+            status, milvus_idx = milvus.describe_index(table_name)
+            if not status.OK():
+                raise VectorIndexError("Could not describe index '%s'': %s"%(table_name,status))   
             # index_file_size = milvus_table.index_file_size
-            metric_type = milvus_table.metric_type
             status, num_rows = milvus.count_collection(table_name)
             if not status.OK():
                 raise VectorIndexError("Could not get number of rows for table '%s'': %s"%(table_name,status))
-            table_info = {'name': table_name, 'dimensions': dims, 'metric_type': str(metric_type), 'no_vectors': num_rows}
+            print(milvus_idx)
+            table_info = {
+                'name': table_name, 
+                'dimensions': milvus_table.dimension, 
+                'no_vectors': num_rows,
+                'metric_type': str(milvus_table.metric_type), 
+                'index': {
+                        'type': str(milvus_idx.index_type),
+                        'params': milvus_idx.params
+                    }
+                }
             table_infos.append(table_info)
         if returnAsList:
             return table_infos
