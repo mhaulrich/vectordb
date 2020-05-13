@@ -68,10 +68,8 @@ class VectorIndex:
         """Check if a vector table/index exists"""
         milvus = self.milvus()
         status, ok = milvus.has_collection(tableName)
-        return ok 
+        return ok
 
-
-    # 
     def createTable(self, tableName, dimensions, index_type):
         """Create new table/index in the vector db of the provided dimensionality and type"""
         if DEBUG:
@@ -97,6 +95,12 @@ class VectorIndex:
             index_status = milvus.create_index(tableName, index_type, index_param)
             if not index_status.OK():
                 raise VectorIndexError("Could not create index: %s."%index_status.message)
+
+    def flushTable(self, tableName):
+        """Flush a table to disk. This must be done before points are available 
+        for lookup"""
+        milvus = self.milvus()
+        milvus.flush([tableName])
 
     def deleteTable(self, tableName):
         milvus = self.milvus()

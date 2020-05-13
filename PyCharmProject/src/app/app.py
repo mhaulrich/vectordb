@@ -123,7 +123,7 @@ class DatabaseList(Resource):
         assetDB.commit()
         # Get a description back
         table_info = vectorIndex.describeTables(db_name)
-        table_info["no_assets"]: 0
+        table_info["no_assets"] = 0
         return table_info, 201
 
     
@@ -177,6 +177,9 @@ class Database(Resource):
         assets = args['assets']
         if DEBUG:
             print("Incoming vectors:\n%s"%vectors)
+            print("Incoming assets:\n%s"%assets)
+        if len(vectors) != len(assets):
+            abort(Response("ERROR: length of vectors must match length of assets. %d != %d"%(len(vectors),len(assets)), 404))
         query_vector_dims = vectors.shape[1]
         check_abort_wrong_dimenions(db_name, query_vector_dims)
         
@@ -197,11 +200,11 @@ class Database(Resource):
         if len(index_vectors) > 0:
             try:
                 vectorIndex.insert(db_name, list(index_vectors.values()), list(index_vectors.keys()))
-                assetDB.commit() #Finish the insert to assetDB
             except Exception as e:
                 print("Something failed during insert: %s"%str(e))
                 assetDB.rollback() #Roll back the insert to assetDB
                 raise e
+            assetDB.commit() #Finish the insert to assetDB
         pr.disable()
         return vector_hashes, 201
     
@@ -225,7 +228,7 @@ class Point(Resource):
     def get(self, db_name, point_hash):
         """Get point and assets for a provided point_hash"""
         return {
-            'id': point_hash,
+            'id': int(point_hash),
             'vector': vectorIndex.describePoint(db_name, int(point_hash)),
             'assets': assetDB.getAssets(db_name, point_hash)
             }
@@ -270,6 +273,15 @@ class Lookup(Resource):
                 results.append(vectorResult)
 
         return results
+    
+class Flush(Resource):
+    """Rest interface for forcing flushing of VectorIndex data to disk"""
+
+    def post(self, db_name):
+        """Flush VectorIndex data to disk"""
+        if DEBUG:
+            print("Flushing VectorIndex to disk...")
+        vectorIndex.flushTable(db_name)
     
 class Check(Resource):
     """Rest interface for checking database integrety"""
@@ -330,6 +342,7 @@ api.add_resource(Database, '/databases/<db_name>/')
 api.add_resource(PointList, '/databases/<db_name>/points/')
 api.add_resource(Point, '/databases/<db_name>/points/<point_hash>/')
 api.add_resource(Lookup, '/databases/<db_name>/lookup/')
+api.add_resource(Flush, '/databases/<db_name>/flush/')
 api.add_resource(Check, '/check/')
 api.add_resource(Shutdown, '/shutdown/')
 api.add_resource(Test, '/test/')
