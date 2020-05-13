@@ -275,7 +275,8 @@ class Lookup(Resource):
         return results
     
 class Flush(Resource):
-    """Rest interface for forcing flushing of VectorIndex data to disk"""
+    """Rest interface for forcing flushing of VectorIndex data to disk.
+    This is done automatically every second"""
 
     def post(self, db_name):
         """Flush VectorIndex data to disk"""
