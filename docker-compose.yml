@@ -11,6 +11,9 @@ services:
       FLASK_APP: app.py
       FLASK_RUN_HOST: 0.0.0.0
       VECTORDB_DEBUG: "true"
+    depends_on:
+      - "db"
+      - "milvus"
     command: flask run #Override gunicorn webserver with Flask while developping.
 
   db:
