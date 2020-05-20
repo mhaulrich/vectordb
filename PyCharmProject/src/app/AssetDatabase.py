@@ -273,10 +273,10 @@ class AssetDatabase:
     
     def getSample(self, dbname, numRows, offset=0):
         cursor = self.cursor()
-        cursor.execute('SELECT vector_hash, asset_id FROM %s ORDER BY vector_hash LIMIT %d OFFSET %d'%(dbname,numRows,offset))
-        rows = [(row[0],row[1]) for row in cursor]
+        cursor.execute('SELECT vector_hash, array_agg(asset_id) FROM %s GROUP BY vector_hash ORDER BY vector_hash LIMIT %d OFFSET %d'%(dbname,numRows,offset))
+        samples = [{'id': row[0], 'assets': row[1]} for row in cursor]
         cursor.close()
-        return rows
+        return samples
         
 
 

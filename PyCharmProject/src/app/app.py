@@ -215,12 +215,19 @@ class PointList(Resource):
     def get(self, db_name):
         """Get a sample of 'count' rows from 'dbname' starting a 'offset'"""
         args = parser_listPoints.parse_args()
-        hashes = assetDB.getSample(db_name, args['count'], args['offset'])
+        samples = assetDB.getSample(db_name, args['count'], args['offset'])
         if DEBUG:
             print("%-22s %s"%(("Hash","Asset")))
-            for pointhash in hashes:
-                print("%-22s %s"%pointhash)
-        return hashes
+            for sample in samples:
+                first = True
+                for asset in sample['assets']:    
+                    if first:
+                        print("%-22s %s"%(sample['id'],asset))
+                        first = False
+                    else:
+                        print("%-22s %s"%('',asset))
+                        
+        return samples
     
 class Point(Resource):
     """Rest interface for individual points"""
