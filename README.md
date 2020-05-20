@@ -7,7 +7,11 @@ VectorDB runs on docker-compose. The vector indexing uses the Milvus Similarity 
 
 ## How to run
 
-Use the `up.sh` shell script. This creates an environment variable with your current directory, builds the docker-compose project and runs it.
+Shell scripts are provided for starting the service in either debug mode or production mode. The scripts creates an environment variable with your current directory, builds the docker-compose project and runs it with the appropriate settings.
+
+Use `up.sh` for DEBUG mode. This mounts the app-folder to the docker image and uses Flask webserver in development mode, allowing you to do live edits in the code, that are synced to the running webservice.
+
+Use `up_production.sh` for PRODUCTION mode. This uses a high performance Gunicorn server for webserving. The production yaml file may be modified to use different locations for database storage and expose a different port for web.
 
 ## UnitTest the project
 
