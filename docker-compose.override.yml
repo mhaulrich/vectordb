@@ -1,0 +1,24 @@
+#Default override, setting stuff in DEBUG mode
+version: '3'
+services:
+
+  web:
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./PyCharmProject/src/app:/code # Mount code to do live changes
+    environment:
+      FLASK_ENV: development # Allows Flask to automatically reload when code changes
+      FLASK_APP: app.py
+      FLASK_RUN_HOST: 0.0.0.0
+      VECTORDB_DEBUG: "true"
+    command: flask run #Override gunicorn webserver with Flask while developping.
+
+  db:
+    volumes:
+      - ${VECTORDB_WD}/postgres/db-data:/var/lib/postgresql/data
+
+  milvus:
+    volumes:
+      - ${VECTORDB_WD}/milvus/db:/var/lib/milvus/db
+      - ${VECTORDB_WD}/milvus/logs:/var/lib/milvus/logs

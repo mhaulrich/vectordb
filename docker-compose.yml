@@ -1,28 +1,18 @@
 version: '3'
 services:
+
   web:
     build: .
-    ports:
-      - "5000:5000"
-    volumes:
-      - ./PyCharmProject/src/app:/code # Mount code to do live changes
-    environment:
-      FLASK_ENV: development # Allows Flask to automatically reload when code changes
-      FLASK_APP: app.py
-      FLASK_RUN_HOST: 0.0.0.0
-      VECTORDB_DEBUG: "true"
+    restart: always
     depends_on:
       - "db"
       - "milvus"
-    command: flask run #Override gunicorn webserver with Flask while developping.
 
   db:
     image: postgres:alpine
     restart: always
     environment:
       POSTGRES_PASSWORD: mysecretpassword
-    volumes:
-      - ${VECTORDB_WD}/postgres/db-data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
 
@@ -31,7 +21,5 @@ services:
     restart: always
     volumes:
       - ${VECTORDB_WD}/milvus-conf:/var/lib/milvus/conf
-      - ${VECTORDB_WD}/milvus/db:/var/lib/milvus/db
-      - ${VECTORDB_WD}/milvus/logs:/var/lib/milvus/logs
     ports:
       - "19530:19530"

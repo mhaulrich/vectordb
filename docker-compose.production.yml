@@ -1,0 +1,16 @@
+#Default override, setting stuff in DEBUG mode
+version: '3'
+services:
+
+  web:
+    ports:
+      - "5000:5000"
+    
+  db:
+    volumes:
+      - ${VECTORDB_WD}/postgres/db-data:/var/lib/postgresql/data
+
+  milvus:
+    volumes:
+      - ${VECTORDB_WD}/milvus/db:/var/lib/milvus/db
+      - ${VECTORDB_WD}/milvus/logs:/var/lib/milvus/logs
