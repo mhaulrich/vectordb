@@ -77,6 +77,7 @@ class AssetDatabase:
     def commit(self):
         """Commit any pending transactions"""
         self._connection.commit()
+        # self.close()
         
     def rollback(self):
         """Rollback any non-committed transactions"""

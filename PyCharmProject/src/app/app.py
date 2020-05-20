@@ -330,21 +330,7 @@ class Shutdown(Resource):
         func()
         return 'Server shutting down...'
     
-class Test(Resource):
-    """Rest interface for shutting down database"""
-    
-    def post(self):
-        import numpy as np
-        testparser = reqparse.RequestParser(bundle_errors=False, )
-        testparser.add_argument('list', type=float, required=True, action='append', help='test list input')
-        testparser.add_argument('array', type=list, required=True, action='append', help='test 2d array input')
-        testparser.add_argument('stringlist', type=str, required=True, action='append', help='test string list input')
-        # testparser.add_argument('number', type=float, required=True, help='test float input')
-        # testparser.add_argument('array', type=np.array, required=False, help='test numpy array input')
-        args = testparser.parse_args()
-        
-        print(args)
-        return args 
+
         
 
     
@@ -358,5 +344,4 @@ api.add_resource(Lookup, '/databases/<db_name>/lookup/')
 api.add_resource(Flush, '/databases/<db_name>/flush/')
 api.add_resource(Check, '/check/')
 api.add_resource(Shutdown, '/shutdown/')
-api.add_resource(Test, '/test/')
 
