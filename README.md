@@ -13,6 +13,8 @@ Use `up.sh` for DEBUG mode. This mounts the app-folder to the docker image and u
 
 Use `up_production.sh` for PRODUCTION mode. This uses a high performance Gunicorn server for webserving. The production yaml file may be modified to use different locations for database storage and expose a different port for web.
 
+To stop the project and remove all related containers, use `docker-compose down`.
+
 ## UnitTest the project
 
 After having started vectordb (as described above), execute:
