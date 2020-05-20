@@ -282,8 +282,22 @@ class AssetDatabase:
         except (Exception, psycopg2.Error) as error:
             print("Failed to lookup asset: %s"%error)        
         cursor.close()
-        self.commit()
+        self.commit()        
         return asset_ids
+    
+    def getPointsWithAsset(self, dbname, asset_id):
+        """Return a list of points associated with the provided asset_id"""
+        cursor = self.cursor()
+        points = []
+        try:
+            cursor.execute("SELECT vector_hash, array_agg(asset_id) FROM %s WHERE vector_hash IN (SELECT vector_hash FROM %s WHERE asset_id = '%s') GROUP BY vector_hash ORDER BY vector_hash"%(dbname,dbname,asset_id))
+            for row in cursor:
+                points.append({'id': str(row[0]), 'assets': row[1]})
+        except (Exception, psycopg2.Error) as error:
+            print("Failed to lookup points for asset: %s"%error)        
+        cursor.close()
+        self.commit()
+        return points
     
     def getSample(self, dbname, numRows, offset=0):
         cursor = self.cursor()

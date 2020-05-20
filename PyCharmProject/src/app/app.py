@@ -220,6 +220,7 @@ class PointList(Resource):
                         print("%-22s %s"%('',asset))
                         
         return samples
+
     
 class Point(Resource):
     """Rest interface for individual points"""
@@ -276,6 +277,13 @@ class Lookup(Resource):
                 results.append(vectorResult)
 
         return results
+    
+class AssetLookup(Resource):
+    """Rest interface for lookup up points with a specific asset"""
+
+    def get(self, db_name, asset):
+        """Get all points that have this asset"""    
+        return assetDB.getPointsWithAsset(db_name, asset)
     
 class Flush(Resource):
     """Rest interface for forcing flushing of VectorIndex data to disk.
@@ -345,6 +353,7 @@ api.add_resource(DatabaseList, '/databases/')
 api.add_resource(Database, '/databases/<db_name>/')
 api.add_resource(PointList, '/databases/<db_name>/points/')
 api.add_resource(Point, '/databases/<db_name>/points/<point_hash>/')
+api.add_resource(AssetLookup, '/databases/<db_name>/assets/<asset>')
 api.add_resource(Lookup, '/databases/<db_name>/lookup/')
 api.add_resource(Flush, '/databases/<db_name>/flush/')
 api.add_resource(Check, '/check/')

@@ -61,6 +61,12 @@ Insert a list of vectors and their corresponding assets into a database. The fie
 curl localhost:5000/databases/test/ -H 'Content-Type: application/json' -X POST -d '{"assets": ["myAsset"], "vectors": [[1,2,3]]}'
 ```
 
+#### Get all points with a specific asset:
+Get the ids and full list of assets of all points in a database that are associated with a specific asset. Below, all points with asset 'myAsset' from table `test` are retrieved:
+```
+curl localhost:5000/databases/test/assets/myAsset/
+```
+
 #### Exact search for vector
 Search for all neighbours that have exactly `0` distance to the query vectors. This corresponds to getting all assets associated with the query vector. Below an exact search is executed for the query vector `[1,2,3]`
 ```
