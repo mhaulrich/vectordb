@@ -140,7 +140,7 @@ class VectorIndex:
             for nid, distance in zip(id_list, dis_list):
                 neighbourResults.append({
                     'distance': distance, 
-                    'id': nid
+                    'id': str(nid)
                     })
             resultsArr.append(neighbourResults)
         return resultsArr
@@ -164,7 +164,6 @@ class VectorIndex:
             status, num_rows = milvus.count_collection(table_name)
             if not status.OK():
                 raise VectorIndexError("Could not get number of rows for table '%s'': %s"%(table_name,status.message))
-            print(milvus_idx)
             table_info = {
                 'name': table_name, 
                 'dimensions': milvus_table.dimension, 

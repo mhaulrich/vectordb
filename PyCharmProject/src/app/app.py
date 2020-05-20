@@ -1,15 +1,12 @@
 import sys
 import logging
-from flask import Flask, abort, Response
+from flask import Flask, Response, request
 from flask_restful import reqparse, abort, Api, Resource
-import json
-from flask import request
 import cProfile as profile
 from VectorUtils import hash_vector
 from AssetDatabase import AssetDatabase
 from VectorIndex import VectorIndex, IndexType
 import os
-import traceback
 
 # In outer section of code
 pr = profile.Profile()
@@ -68,11 +65,6 @@ def check_abort_missing_db(dbname):
 parser_newDB = reqparse.RequestParser()
 parser_newDB.add_argument('dbname', type=str, required=True, help='Name of the database (str)')
 parser_newDB.add_argument('dimensions', type=int, required=True, help='Dimensionality of the database (int)')
-
-# testparser.add_argument('list', type=float, required=True, action='append', help='test list input')
-# testparser.add_argument('array', type=list, required=True, action='append', help='test 2d array input')
-# testparser.add_argument('stringlist', type=str, required=True, action='append', help='test string list input')
-        
 
 parser_newPoint = reqparse.RequestParser()
 parser_newPoint.add_argument('vectors', type=list, action='append', required=True, help='List of vectors to insert in database')
@@ -234,10 +226,14 @@ class Point(Resource):
 
     def get(self, db_name, point_hash):
         """Get point and assets for a provided point_hash"""
+        assets = assetDB.getAssets(db_name, point_hash)
+        if not assets:
+            abort(Response("ERROR: Point '%s' does not exist in %s."%(point_hash, db_name), 404))
+        vec = vectorIndex.describePoint(db_name, int(point_hash))
         return {
-            'id': int(point_hash),
-            'vector': vectorIndex.describePoint(db_name, int(point_hash)),
-            'assets': assetDB.getAssets(db_name, point_hash)
+            'id': str(point_hash),
+            'vector': vec,
+            'assets': assets
             }
     #TODO:
     # def delete(self, db_name, point_hash):
@@ -261,8 +257,8 @@ class Lookup(Resource):
             for vector_hash in hashes:
                 assets = assetDB.getAssets(db_name, vector_hash)
                 vectorResult = {
-                    'neighbours': [{'id': vector_hash, 'distance': 0.0, 'assets': assets}],
-                    'queryid': vector_hash
+                    'neighbours': [{'id': str(vector_hash), 'distance': 0.0, 'assets': assets}],
+                    'queryid': str(vector_hash)
                     }     
                 results.append(vectorResult)
         else: #NN lookup
@@ -275,7 +271,7 @@ class Lookup(Resource):
                     #     neighbour['distance'] = 0.0
                 vectorResult = {
                     'neighbours': index_result, 
-                    'queryid': vector_hash
+                    'queryid': str(vector_hash)
                     }     
                 results.append(vectorResult)
 

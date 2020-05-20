@@ -171,8 +171,6 @@ class AssetDatabase:
         cursor = self.cursor()
         try:
             cursor.execute("SELECT * FROM pg_catalog.pg_tables WHERE tablename = '" + table_name + "'")
-            cursor.close()
-            self.commit()
             if cursor.rowcount < 1:
                 return False
             else:
@@ -180,31 +178,39 @@ class AssetDatabase:
         except (Exception, psycopg2.Error) as e:
             # Don't really like this. We must be able to check if the error is actually that the table does not exist
             print('Table does not exist:', e)
-            cursor.close()
             return False
+        finally:
+            cursor.close()
+            self.commit()
     
     def getDimensions(self, dbname):
         """Get the dimensionality of a vectorTable, e.g. 3 for a 3D table. This is not the number of rows"""
         dims = self._dimensions_cache.get(dbname)
         if dims is None:
             cursor = self.cursor()
-            cursor.execute("SELECT dims FROM " + METATABLE_NAME + ' WHERE name = %s', (dbname,))
-            row = cursor.fetchone()
+            try:
+                cursor.execute("SELECT dims FROM " + METATABLE_NAME + ' WHERE name = %s', (dbname,))
+                row = cursor.fetchone()
+                dims = row[0]
+                self._dimensions_cache[dbname] = dims
+            except (Exception, psycopg2.Error) as e:
+                print("Failed to get dimensions: ", e)
             cursor.close()
-            dims = row[0]
-            self._dimensions_cache[dbname] = dims
-    
+            self.commit()  
         return dims
     
     def getExistingTables(self):
         """Returns a list of the names of all existing tables registered in the Meta-table."""
         cursor = self.cursor()
-        cursor.execute("SELECT name FROM " + METATABLE_NAME)
-
         tableNames = []
-        for row in cursor:
-            tableNames.append(row[0])
+        try:
+            cursor.execute("SELECT name FROM " + METATABLE_NAME)
+            for row in cursor:
+                tableNames.append(row[0])
+        except (Exception, psycopg2.Error) as e:
+                print("Failed to get existing tables: ", e)
         cursor.close()
+        self.commit()
         return tableNames
     
     def getNumberOfAssets(self, tablename):
@@ -216,11 +222,15 @@ class AssetDatabase:
             returnAsList = False
         counts = []
         cursor = self.cursor()
-        for table in tablename:
-            cursor.execute("SELECT count(*) FROM " + table)
-            row = cursor.fetchone()
-            counts.append(row[0])
+        try:
+            for table in tablename:
+                cursor.execute("SELECT count(*) FROM " + table)
+                row = cursor.fetchone()
+                counts.append(row[0])
+        except (Exception, psycopg2.Error) as error:
+            print("Failed to get number of assets: %s"%error)        
         cursor.close()
+        self.commit()
         if not returnAsList:
             return counts[0]
         else:
@@ -264,18 +274,27 @@ class AssetDatabase:
     def getAssets(self, dbname, vector_hash):
         """Return a list of assets associated with the provided vector_hash"""
         cursor = self.cursor()
-        cursor.execute('SELECT asset_id FROM ' + dbname + ' WHERE vector_hash = %s', (vector_hash,))
         asset_ids = []
-        for row in cursor:
-            asset_ids.append(row[0])
+        try:
+            cursor.execute('SELECT asset_id FROM ' + dbname + ' WHERE vector_hash = %s', (vector_hash,))
+            for row in cursor:
+                asset_ids.append(row[0])
+        except (Exception, psycopg2.Error) as error:
+            print("Failed to lookup asset: %s"%error)        
         cursor.close()
+        self.commit()
         return asset_ids
     
     def getSample(self, dbname, numRows, offset=0):
         cursor = self.cursor()
-        cursor.execute('SELECT vector_hash, array_agg(asset_id) FROM %s GROUP BY vector_hash ORDER BY vector_hash LIMIT %d OFFSET %d'%(dbname,numRows,offset))
-        samples = [{'id': row[0], 'assets': row[1]} for row in cursor]
+        samples = []
+        try:
+            cursor.execute('SELECT vector_hash, array_agg(asset_id) FROM %s GROUP BY vector_hash ORDER BY vector_hash LIMIT %d OFFSET %d'%(dbname,numRows,offset))
+            samples = [{'id': str(row[0]), 'assets': row[1]} for row in cursor]
+        except (Exception, psycopg2.Error) as error:
+            print("Failed to lookup sample: %s"%error)       
         cursor.close()
+        self.commit()
         return samples
         
 
