@@ -91,8 +91,19 @@ class TestService(unittest.TestCase):
         self.assertEqual(200, pointResp.status_code, "Service should return OK on get existing pointlist")
         pointListData = json.loads(pointListResp.data)
         self.assertEqual(n, len(pointListData), "Service should return a point list of the requested length")
-
-    
+        
+        #Test that we can't add points with mismatching dimensions
+        badpoints = (np.random.rand(n,self.databaseDims+1)*10).round().tolist()
+        badparams = {'vectors': badpoints, 'assets': assets}
+        badresp = self.test.post('/databases/%s/'%self.databaseName, data=json.dumps(badparams), content_type='application/json')
+        self.assertEqual(400, badresp.status_code, "Service should return 400 BAD REQUEST")
+        
+        #Test that we can't add points with mismatching assets
+        badassets = ["assetNum%d"%i for i in range(n-1)]
+        badparams2 = {'vectors': points, 'assets': badassets}
+        badresp2 = self.test.post('/databases/%s/'%self.databaseName, data=json.dumps(badparams2), content_type='application/json')
+        self.assertEqual(400, badresp2.status_code, "Service should return 400 BAD REQUEST")
+        
     def test_4_Lookup(self):
         n = 2
         querypoints = (np.random.rand(n,self.databaseDims)*10).round().tolist()

@@ -179,7 +179,7 @@ class Database(Resource):
             print("Incoming vectors:\n%s"%vectors)
             print("Incoming assets:\n%s"%assets)
         if len(vectors) != len(assets):
-            abort(Response("ERROR: length of vectors must match length of assets. %d != %d"%(len(vectors),len(assets)), 404))
+            abort(Response("ERROR: length of vectors must match length of assets. %d != %d"%(len(vectors),len(assets)), 400))
         query_vector_dims = vectors.shape[1]
         check_abort_wrong_dimenions(db_name, query_vector_dims)
         
