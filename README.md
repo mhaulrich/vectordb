@@ -68,7 +68,7 @@ curl localhost:5000/databases/test/ -H 'Content-Type: application/json' -X POST 
 ```
 
 #### Get all points with a specific asset:
-Get the ids and full list of assets of all points in a database that are associated with a specific asset. Below, all points with asset 'myAsset' from table `test` are retrieved:
+Get the ids and full list of assets of all points in a database that are associated with a specific asset. Below, all points with asset `myAsset` from table `test` are retrieved:
 ```
 curl localhost:5000/databases/test/assets/myAsset/
 ```
