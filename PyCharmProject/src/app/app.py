@@ -27,11 +27,11 @@ if __name__ == "__main__":
     if len(sys.argv) == 5:
         assetDB_host = sys.argv[1]
         assetDB_port = sys.argv[2]
-    
+
         milvus_host = sys.argv[3]
         milvus_port = sys.argv[4]
     app.run(port=5001)
-else: 
+else:
     #Hook up gunicorn logging
     gunicorn_logger = logging.getLogger('gunicorn.error')
     app.logger.handlers = gunicorn_logger.handlers
@@ -54,7 +54,7 @@ def check_abort_wrong_dimenions(dbname, request_dims):
     db_dims = assetDB.getDimensions(dbname)
     if request_dims != db_dims:
         abort(Response('ERROR: vectors in %s have %d dimensions. Vector in request has %d.'%(dbname, request_dims, db_dims), 400))
-        
+
 def check_abort_missing_db(dbname):
     if not assetDB.tableExists(dbname):
         abort(Response("ERROR: Table '%s' does not exist."%(dbname), 404))
@@ -93,8 +93,8 @@ class DatabaseList(Resource):
         for table_info, numAssets in zip(table_infos, asset_counts):
             table_info['no_assets'] = numAssets
         return table_infos
-        
-    
+
+
     def post(self):
         """Create a new database"""
         args = parser_newDB.parse_args()
@@ -118,11 +118,11 @@ class DatabaseList(Resource):
         table_info["no_assets"] = 0
         return table_info, 201
 
-    
+
 
 class Database(Resource):
     """Rest interface for individual databases"""
-    
+
     def get(self, db_name):
         """Return information on a specific database
         - curl http://localhost:5000/databases/test """
@@ -130,7 +130,7 @@ class Database(Resource):
         table_info = vectorIndex.describeTables(db_name)
         table_info['no_assets'] = assetDB.getNumberOfAssets(db_name)
         return table_info
-    
+
     def delete(self, db_name):
         """Delete a database
         - curl http://localhost:5000/databases/test -X DELETE """
@@ -149,7 +149,7 @@ class Database(Resource):
             print(errMsgs)
             return 'Warning: the following errors occurred during delete: '+' | '.join(errMsgs), 200
         return '', 204
-    
+
     def post(self, db_name):
         """Insert points and associated assets in the database
             There are three cases:
@@ -160,7 +160,7 @@ class Database(Resource):
                 No vector should be added to vector index as it is already there
             3. New vector hash.
                 (Vector hash, asset) should be inserted into db
-                Vector should be inserted into vector index"""      
+                Vector should be inserted into vector index"""
         pr.enable()
         args = parser_newPoint.parse_args()
         if DEBUG:
@@ -174,11 +174,11 @@ class Database(Resource):
             abort(Response("ERROR: length of vectors must match length of assets. %d != %d"%(len(vectors),len(assets)), 400))
         query_vector_dims = vectors.shape[1]
         check_abort_wrong_dimenions(db_name, query_vector_dims)
-        
+
         vector_hashes = []
         for vector in vectors:
             vector_hashes.append(hash_vector(vector))
-    
+
         # Find hashes and vectors that should be added to milvus
         # We do this in a dict to avoid actually adding the same vector more than once
         vector_hash_exists = assetDB.insertVectorHashes(db_name, vector_hashes, assets)
@@ -188,7 +188,7 @@ class Database(Resource):
                 index_vectors[vector_hashes[i]] = vectors[i]
         if DEBUG:
             print('Adding: %d/%d to Index'%(len(index_vectors),len(vectors)))
-    
+
         if len(index_vectors) > 0:
             try:
                 vectorIndex.insert(db_name, list(index_vectors.values()), list(index_vectors.keys()))
@@ -198,8 +198,8 @@ class Database(Resource):
                 raise e
             assetDB.commit() #Finish the insert to assetDB
         pr.disable()
-        return vector_hashes, 201
-    
+        return [str(hash) for hash in vector_hashes], 201
+
 
 class PointList(Resource):
     """Rest interface for points"""
@@ -212,16 +212,16 @@ class PointList(Resource):
             print("%-22s %s"%(("Hash","Asset")))
             for sample in samples:
                 first = True
-                for asset in sample['assets']:    
+                for asset in sample['assets']:
                     if first:
                         print("%-22s %s"%(sample['id'],asset))
                         first = False
                     else:
                         print("%-22s %s"%('',asset))
-                        
+
         return samples
 
-    
+
 class Point(Resource):
     """Rest interface for individual points"""
 
@@ -239,7 +239,7 @@ class Point(Resource):
     #TODO:
     # def delete(self, db_name, point_hash):
     #     "", 204
-    
+
 class Lookup(Resource):
     """Rest interface for nearest neighbour searches"""
 
@@ -252,7 +252,7 @@ class Lookup(Resource):
         vectors = vectorIndex.make2DFloat(args['vectors'])
         exact = args['exact']
         hashes = [hash_vector(vector) for vector in vectors]
-        
+
         results = []
         if exact: # Find exact mataches
             for vector_hash in hashes:
@@ -260,31 +260,31 @@ class Lookup(Resource):
                 vectorResult = {
                     'neighbours': [{'id': str(vector_hash), 'distance': 0.0, 'assets': assets}],
                     'queryid': str(vector_hash)
-                    }     
+                    }
                 results.append(vectorResult)
         else: #NN lookup
             index_results = vectorIndex.lookup(db_name, vectors, count)
             for index_result, vector_hash in zip(index_results, hashes):
                 print("Got %d neighbours for hash %d"%(len(index_result),vector_hash))
-                for neighbour in index_result: 
+                for neighbour in index_result:
                     neighbour['assets'] = assetDB.getAssets(db_name, neighbour['id'])
                     # if neighbour['id'] == vector_hash: #Exactly the same - override distance
                     #     neighbour['distance'] = 0.0
                 vectorResult = {
-                    'neighbours': index_result, 
+                    'neighbours': index_result,
                     'queryid': str(vector_hash)
-                    }     
+                    }
                 results.append(vectorResult)
 
         return results
-    
+
 class AssetLookup(Resource):
     """Rest interface for lookup up points with a specific asset"""
 
     def get(self, db_name, asset):
-        """Get all points that have this asset"""    
+        """Get all points that have this asset"""
         return assetDB.getPointsWithAsset(db_name, asset)
-    
+
 class Flush(Resource):
     """Rest interface for forcing flushing of VectorIndex data to disk.
     This is done automatically every second"""
@@ -294,16 +294,16 @@ class Flush(Resource):
         if DEBUG:
             print("Flushing VectorIndex to disk...")
         vectorIndex.flushTable(db_name)
-    
+
 class Check(Resource):
     """Rest interface for checking database integrety"""
-    
+
     def get(self):
-        """Check if what is in meta corresponds with what vector_hash tables 
+        """Check if what is in meta corresponds with what vector_hash tables
         there are, and what there is in vector index"""
         tableNames = assetDB.getExistingTables()
         print("Number of tables in meta: %d"%len(tableNames))
-    
+
         all_good = True
         print('Table name\tExists in postgres\tExists in Milvus')
         for tableName in tableNames:
@@ -315,13 +315,13 @@ class Check(Resource):
             return 'All ok'
         else:
             return 'Database integrety bad. Check server output for details', 500
-        
-        
+
+
 class Shutdown(Resource):
     """Rest interface for shutting down database"""
-    
+
     def post(self):
-        """Check if what is in meta corresponds with what vector_hash tables 
+        """Check if what is in meta corresponds with what vector_hash tables
         there are, and what there is in vector index"""
         pr.dump_stats('profile.pstat')
         func = request.environ.get('werkzeug.server.shutdown')
@@ -329,11 +329,11 @@ class Shutdown(Resource):
             raise RuntimeError('Not running with the Werkzeug Server')
         func()
         return 'Server shutting down...'
-    
 
-        
 
-    
+
+
+
 
 api.add_resource(DatabaseList, '/databases/')
 api.add_resource(Database, '/databases/<db_name>/')
@@ -344,4 +344,3 @@ api.add_resource(Lookup, '/databases/<db_name>/lookup/')
 api.add_resource(Flush, '/databases/<db_name>/flush/')
 api.add_resource(Check, '/check/')
 api.add_resource(Shutdown, '/shutdown/')
-
