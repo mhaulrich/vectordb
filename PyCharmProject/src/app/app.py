@@ -4,9 +4,10 @@ from flask import Flask, Response, request
 from flask_restful import reqparse, abort, Api, Resource
 import cProfile as profile
 from VectorUtils import hash_vector
-from AssetDatabase import AssetDatabase
-from VectorIndex import VectorIndex, IndexType
+from AssetDatabase import AssetDatabase, AssetDatabaseError
+from VectorIndex import VectorIndex, IndexType, VectorIndexError
 import os
+import re
 
 # In outer section of code
 pr = profile.Profile()
@@ -20,6 +21,7 @@ assetDB_port = "5432"
 milvus_host = "milvus"
 milvus_port ="19530"
 
+dbNamePattern = re.compile("^([\w]+)$")
 
 if __name__ == "__main__":
     # If running outside docker-compose run with
@@ -56,8 +58,8 @@ def check_abort_wrong_dimenions(dbname, request_dims):
         abort(Response('ERROR: vectors in %s have %d dimensions. Vector in request has %d.'%(dbname, request_dims, db_dims), 400))
 
 def check_abort_missing_db(dbname):
-    if not assetDB.tableExists(dbname):
-        abort(Response("ERROR: Table '%s' does not exist."%(dbname), 404))
+    if not vectorIndex.tableExists(dbname) and not assetDB.tableExists(dbname):
+        abort(Response("ERROR: Table '%s' does not exist in either asset database or vector index."%(dbname), 404))
 
 
 
@@ -99,20 +101,25 @@ class DatabaseList(Resource):
         """Create a new database"""
         args = parser_newDB.parse_args()
         db_name = args['dbname']
+        if not dbNamePattern.match(db_name):
+            return "Error: Bad database naming '%s'. Only letters, numbers and underscore allowed."%db_name, 400
         dimensions = args['dimensions']
         index_type='IVFLAT'
         if assetDB.tableExists(db_name):
             return "Error: Vector database with name '%s' already exists"%db_name, 409
-        # Create in postgres
-        assetDB.createVectorTable(db_name, dimensions, index_type)
-        # Create in Milvus
+
         try:
+            # Create in postgres
+            assetDB.createVectorTable(db_name, dimensions, index_type)
+            # Create in Milvus
             vectorIndex.createTable(db_name, dimensions, IndexType.IVFLAT)
         except Exception as e:
-            print("Something failed during table creation: %s"%str(e))
-            assetDB.rollback() #Roll back the insert to assetDB
-            raise e
-        assetDB.commit()
+            #print("Something failed during table creation: %s"%str(e))
+            if isinstance(e, VectorIndexError):
+                assetDB.rollback() #Roll back the insert to assetDB
+            return "Failed to create database: %s"%str(e), 500
+        finally:
+            assetDB.commit()
         # Get a description back
         table_info = vectorIndex.describeTables(db_name)
         table_info["no_assets"] = 0
@@ -134,8 +141,7 @@ class Database(Resource):
     def delete(self, db_name):
         """Delete a database
         - curl http://localhost:5000/databases/test -X DELETE """
-        if not vectorIndex.tableExists(db_name) and not assetDB.tableExists(db_name):
-            abort(Response("ERROR: Table '%s' does not exist in either asset database or vector index."%(db_name), 404))
+        check_abort_missing_db(db_name)
         errMsgs = []
         try:
             vectorIndex.deleteTable(db_name)
@@ -162,6 +168,7 @@ class Database(Resource):
                 (Vector hash, asset) should be inserted into db
                 Vector should be inserted into vector index"""
         pr.enable()
+        check_abort_missing_db(db_name)
         args = parser_newPoint.parse_args()
         if DEBUG:
             print("Incoming args:\n%s"%args)
@@ -196,7 +203,8 @@ class Database(Resource):
                 print("Something failed during insert: %s"%str(e))
                 assetDB.rollback() #Roll back the insert to assetDB
                 raise e
-            assetDB.commit() #Finish the insert to assetDB
+            finally:
+                assetDB.commit() #Finish the insert to assetDB
         pr.disable()
         return [str(hash) for hash in vector_hashes], 201
 
@@ -206,6 +214,7 @@ class PointList(Resource):
 
     def get(self, db_name):
         """Get a sample of 'count' rows from 'dbname' starting a 'offset'"""
+        check_abort_missing_db(db_name)
         args = parser_listPoints.parse_args()
         samples = assetDB.getSample(db_name, args['count'], args['offset'])
         if DEBUG:
@@ -227,6 +236,7 @@ class Point(Resource):
 
     def get(self, db_name, point_hash):
         """Get point and assets for a provided point_hash"""
+        check_abort_missing_db(db_name)
         assets = assetDB.getAssets(db_name, point_hash)
         if not assets:
             abort(Response("ERROR: Point '%s' does not exist in %s."%(point_hash, db_name), 404))
@@ -245,6 +255,7 @@ class Lookup(Resource):
 
     def post(self, db_name):
         """Lookup the nearest neighbours to the vectors provided."""
+        check_abort_missing_db(db_name)
         args = parser_lookup.parse_args()
         if DEBUG:
             print("Incoming args:\n%s"%args)
@@ -283,6 +294,7 @@ class AssetLookup(Resource):
 
     def get(self, db_name, asset):
         """Get all points that have this asset"""
+        check_abort_missing_db(db_name)
         return assetDB.getPointsWithAsset(db_name, asset)
 
 class Flush(Resource):
@@ -291,6 +303,7 @@ class Flush(Resource):
 
     def post(self, db_name):
         """Flush VectorIndex data to disk"""
+        check_abort_missing_db(db_name)
         if DEBUG:
             print("Flushing VectorIndex to disk...")
         vectorIndex.flushTable(db_name)

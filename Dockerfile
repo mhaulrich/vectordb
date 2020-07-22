@@ -2,7 +2,9 @@ FROM python:3.7-buster
 
 WORKDIR /code
 
-# Setup 
+#ADD conf/pip.conf /root/.pip/
+
+# Setup
 COPY requirements.txt /code/requirements.txt
 RUN 	pip install --upgrade numpy && \
 	pip install -r requirements.txt

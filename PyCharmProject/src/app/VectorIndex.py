@@ -17,28 +17,28 @@ global_milvus = None
 
 class VectorIndex:
     """A class for communication with Milvus vector index"""
-    
+
     def __init__(self, host, port):
         self.host = host
         self.port = port
         self._indexFileSize = 32
         self._metricType = MetricType.L2
         self._milvus =  None
-        
+
         self.init()
-        
+
     def __del__(self):
         try:
             self.close()
         except:
             pass
-        
+
     def connect(self):
         self._milvus = Milvus()
         param = {'host': self.host, 'port': self.port}
         if DEBUG:
             print("Connecting to Milvus, %s:%s"%(self.host,self.port))
-        
+
         retries = 0
         while retries < LIMIT_RETRIES:
             try:
@@ -55,15 +55,15 @@ class VectorIndex:
         else:
             print("Server connect fail.")
             sys.exit(1)
-        
+
     def milvus(self):
         if self._milvus is None or not self._milvus.connected():
             self.connect()
         return self._milvus
-        
+
     def init(self):
         self.connect()
-        
+
     def tableExists(self, tableName):
         """Check if a vector table/index exists"""
         milvus = self.milvus()
@@ -74,7 +74,7 @@ class VectorIndex:
         """Create new table/index in the vector db of the provided dimensionality and type"""
         if DEBUG:
             print("Creating vector database with name '%s', %d dimensions and type '%s'."%(tableName, dimensions,index_type))
-    
+
         if self.tableExists(tableName):
             raise VectorIndexError("Table already exists")
         else:
@@ -88,7 +88,7 @@ class VectorIndex:
             table_status = milvus.create_collection(param)
             if not table_status.OK():
                 raise VectorIndexError("Could not create table '%s': %s."%(tableName,table_status.message))
-    
+
             index_param = {
                 'nlist': 2048
             }
@@ -97,7 +97,7 @@ class VectorIndex:
                 raise VectorIndexError("Could not create index: %s."%index_status.message)
 
     def flushTable(self, tableName):
-        """Flush a table to disk. This must be done before points are available 
+        """Flush a table to disk. This must be done before points are available
         for lookup"""
         milvus = self.milvus()
         milvus.flush([tableName])
@@ -110,7 +110,7 @@ class VectorIndex:
 
 
     def insert(self, tableName, vectors, ids=None):
-        """Insert vectors into milvus using the associated ids. Both vectors 
+        """Insert vectors into milvus using the associated ids. Both vectors
         and ids must be of type array/list. If ids is None, ids are automatically
         assigned.
         Returns a list of ids of the vectors inserted."""
@@ -128,23 +128,23 @@ class VectorIndex:
         milvus = self.milvus()
         vector_list = self.make2DFloat(vector).tolist()
         print("Looking up %d nearest neighbours in table '%s' for query points: %s"%(k,tableName,vector))
-        
+
         params = {'nprobe': 16}
         status, queryResults = milvus.search(tableName, k, vector_list, params=params)
         if not status.OK():
             raise VectorIndexError("Could not lookup: %s"%status.message)
         resultsArr = []
-        
+
         for id_list, dis_list in zip(queryResults.id_array, queryResults.distance_array):
             neighbourResults = []
             for nid, distance in zip(id_list, dis_list):
                 neighbourResults.append({
-                    'distance': distance, 
+                    'distance': distance,
                     'id': str(nid)
                     })
             resultsArr.append(neighbourResults)
         return resultsArr
-    
+
     def describeTables(self, tables):
         """Describe the tables specified by 'tables'."""
         returnAsList = True
@@ -159,16 +159,16 @@ class VectorIndex:
                 raise VectorIndexError("Could not describe table '%s'': %s"%(table_name,status.message))
             status, milvus_idx = milvus.describe_index(table_name)
             if not status.OK():
-                raise VectorIndexError("Could not describe index '%s'': %s"%(table_name,status.message))   
+                raise VectorIndexError("Could not describe index '%s'': %s"%(table_name,status.message))
             # index_file_size = milvus_table.index_file_size
             status, num_rows = milvus.count_collection(table_name)
             if not status.OK():
                 raise VectorIndexError("Could not get number of rows for table '%s'': %s"%(table_name,status.message))
             table_info = {
-                'name': table_name, 
-                'dimensions': milvus_table.dimension, 
+                'name': table_name,
+                'dimensions': milvus_table.dimension,
                 'no_vectors': num_rows,
-                'metric_type': str(milvus_table.metric_type), 
+                'metric_type': str(milvus_table.metric_type),
                 'index': {
                         'type': str(milvus_idx.index_type),
                         'params': milvus_idx.params
@@ -179,12 +179,12 @@ class VectorIndex:
             return table_infos
         else:
             return table_infos[0]
-    
+
     def describePoint(self, tableName, pointID):
         milvus = self.milvus()
         _, point = milvus.get_vector_by_id(tableName, pointID)
         return point
-        
+
     def make2DFloat(self, vector):
         vector = np.array(vector, dtype=float)
         if vector.ndim == 1: #Make sure it's always 2D
@@ -193,8 +193,8 @@ class VectorIndex:
 
 class VectorIndexError(Exception):
     def __init__(self, message, suberror=None):
-        self.message = None
-        self.suberror = None
+        self.message = message
+        self.suberror = suberror
     def __str__(self):
         if self.suberror:
             return 'VectorIndexError: %s. Suberror: %s. '%(self.message, self.suberror)

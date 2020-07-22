@@ -7,7 +7,6 @@ services:
     depends_on:
       - "db"
       - "milvus"
-
   db:
     image: postgres:alpine
     restart: always

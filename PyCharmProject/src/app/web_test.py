@@ -7,7 +7,7 @@ import time
 class TestService(unittest.TestCase):
 
     test = app.test_client()
-    databaseName = 'web_unit_test_table'
+    databaseName = 'web_UnitTestTable1'
     databaseDims = 3
 
     def test_1_CreateDatabase(self):
@@ -15,22 +15,36 @@ class TestService(unittest.TestCase):
         #Make sure database dosn't already exist
         try:
             self.test.delete('/databases/%s'%self.databaseName)
+            time.sleep(1)
         except:
             pass
 
         #Create database
         params = {'dbname': self.databaseName, 'dimensions': self.databaseDims}
         resp = self.test.post('/databases', data=params)
+        #print("Response: %s"%resp.data)
         self.assertEqual(201, resp.status_code, "Service should return 201 CREATED")
 
         #Create a second time and verify it breaks
         resp2 = self.test.post('/databases', data=params)
+        #print("Response: %s"%resp2.data)
         self.assertEqual(409, resp2.status_code, "Service should return 409 CONFLICT when table exists")
 
         #Check response contains our table info
         data = json.loads(resp.data)
         self.assertEqual(self.databaseName, data['name'], "Service should respond the requested name")
         self.assertEqual(self.databaseDims, data['dimensions'], "Service should respond the requested dimensions")
+
+        #Check that we get proper response for non-existing table_status
+        resp3 = self.test.get('/databases/%s'%self.databaseName)
+        #print("Response: %s"%resp3.data)
+        self.assertEqual(200, resp3.status_code, "Service should return OK when table exists")
+        data3 = json.loads(resp3.data)
+        self.assertEqual(self.databaseName, data3['name'], "Service should respond the requested name")
+
+        #Check that we get proper response for non-existing table_status
+        resp4 = self.test.get('/databases/non_existing_database')
+        self.assertEqual(404, resp4.status_code, "Service should return NOT FOUND when table does not exist")
 
 
     def test_2_AddPoint(self):
@@ -57,9 +71,15 @@ class TestService(unittest.TestCase):
         self.assertEqual(200, resp3.status_code, "Service should return OK on get existing point")
         data3 = json.loads(resp3.data)
         #print(data3)
-        self.assertEqual(pointID, data3['id'], "Service should respond json with the same ID as was looked up.")
+        self.assertEqual(pointID, data3['id'], "Service should respond json with the same ID as was looked up")
         self.assertIn(asset[0], data3['assets'], "Asset '%s' should exist in JSON"%asset[0])
         self.assertListEqual(point[0], data3['vector'], "Vector '%s' should exist in JSON"%point[0])
+
+        #Add same point again and see that it is not duplicate
+        resp4 = self.test.post('/databases/%s/'%self.databaseName, data=json.dumps(params), content_type='application/json')
+        self.assertEqual(201, resp4.status_code, "Service should return 201 CREATED on duplicate point")
+        data4 = json.loads(resp4.data)
+        self.assertEqual(data4[0],pointID,"Service should return the same point ID for an identical point")
 
 
     def test_3_AddMultiplePoints(self):
@@ -99,7 +119,7 @@ class TestService(unittest.TestCase):
         badresp = self.test.post('/databases/%s/'%self.databaseName, data=json.dumps(badparams), content_type='application/json')
         self.assertEqual(400, badresp.status_code, "Service should return 400 BAD REQUEST")
 
-        #Test that we can't add points with mismatching assets
+        #Test that we can't add points with mismatching number of assets
         badassets = ["assetNum%d"%i for i in range(n-1)]
         badparams2 = {'vectors': points, 'assets': badassets}
         badresp2 = self.test.post('/databases/%s/'%self.databaseName, data=json.dumps(badparams2), content_type='application/json')
@@ -112,8 +132,8 @@ class TestService(unittest.TestCase):
 
         params = {'vectors': querypoints, 'exact': False, 'count': 5}
         resp = self.test.post('/databases/%s/lookup/'%self.databaseName, data=json.dumps(params), content_type='application/json')
-        respData = json.loads(resp.data)
         self.assertEqual(200, resp.status_code, "Service should return 200 OK upon lookup")
+        respData = json.loads(resp.data)
         self.assertTrue(len(respData)==n, "Service response should have same length as # querypoints")
 
         for respResult in respData:
