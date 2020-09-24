@@ -8,6 +8,7 @@ IVFLAT @ 10⁹ x 128D:
 	- nProbe: 8-32
 	- nList: 16384
 	- GPU only better when #queryvecs > 1000
+	Calc = nList + (TOTAL_VEC / nList) * nProbe
 
 
 Milvus supports partitions tags. I.e. we can tag all inserted vectors with a partition - e.g. source, or codeword.
