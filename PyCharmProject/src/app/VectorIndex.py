@@ -28,7 +28,7 @@ class VectorIndex:
             pass
 
     def connect(self):
-        self._milvus = Milvus()
+
         param = {'host': self.host, 'port': self.port}
         if DEBUG:
             print("Connecting to Milvus, %s:%s"%(self.host,self.port))
@@ -36,13 +36,11 @@ class VectorIndex:
         retries = 0
         while retries < LIMIT_RETRIES:
             try:
-                status = self._milvus.connect(**param)
-                if status.OK():
-                    if DEBUG:
-                        print("Successfully connected to Milvus")
-                    return self._milvus
-                print("Bad Milvus status code: %s"%str(status))
-            except NotConnectError as err:
+                self._milvus = Milvus(host=self.host, port=self.port)
+                if DEBUG:
+                    print("Successfully connected to Milvus")
+                return self._milvus
+            except Exception as err:
                 print("Failed to connect to Milvus: %s"%str(err))
             retries += 1
             print("Retrying %d"%retries)
@@ -51,7 +49,7 @@ class VectorIndex:
             sys.exit(1)
 
     def milvus(self):
-        if self._milvus is None or not self._milvus.connected():
+        if self._milvus is None:
             self.connect()
         return self._milvus
 
@@ -148,14 +146,14 @@ class VectorIndex:
         milvus = self.milvus()
         table_infos = []
         for table_name in tables:
-            status, milvus_table = milvus.describe_collection(table_name)
+            status, milvus_table = milvus.get_collection_info(table_name)
             if not status.OK():
                 raise VectorIndexError("Could not describe table '%s'': %s"%(table_name,status.message))
-            status, milvus_idx = milvus.describe_index(table_name)
+            status, milvus_idx = milvus.get_index_info(table_name)
             if not status.OK():
                 raise VectorIndexError("Could not describe index '%s'': %s"%(table_name,status.message))
             # index_file_size = milvus_table.index_file_size
-            status, num_rows = milvus.count_collection(table_name)
+            status, num_rows = milvus.count_entities(table_name)
             if not status.OK():
                 raise VectorIndexError("Could not get number of rows for table '%s'': %s"%(table_name,status.message))
             table_info = {
@@ -165,6 +163,7 @@ class VectorIndex:
                 'metric_type': str(milvus_table.metric_type),
                 'index': {
                         'type': str(milvus_idx.index_type),
+                        'size': milvus_table.index_file_size,
                         'params': milvus_idx.params
                     }
                 }
@@ -176,8 +175,8 @@ class VectorIndex:
 
     def describePoint(self, tableName, pointID):
         milvus = self.milvus()
-        _, point = milvus.get_vector_by_id(tableName, pointID)
-        return point
+        _, point = milvus.get_entity_by_id(tableName, [pointID,])
+        return point[0]
 
     def make2DFloat(self, vector):
         vector = np.array(vector, dtype=float)
