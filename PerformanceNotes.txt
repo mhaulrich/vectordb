@@ -1,0 +1,15 @@
+Index comparison:
+https://medium.com/unstructured-data-service/how-to-choose-an-index-in-milvus-4f3d15259212
+
+Index size:
+Default is 1024MB, we should at least use the same. (And not 32 as currently)
+
+IVFLAT @ 10⁹ x 128D:
+	- nProbe: 8-32
+	- nList: 16384
+	- GPU only better when #queryvecs > 1000
+
+
+Milvus supports partitions tags. I.e. we can tag all inserted vectors with a partition - e.g. source, or codeword.
+This allows us to confine searches to specific partitions, e.g. only within one codeword or source. Even supports
+regex.
