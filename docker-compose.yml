@@ -16,7 +16,7 @@ services:
       - "5432:5432"
 
   milvus:
-    image: milvusdb/milvus:0.8.0-cpu-d041520-464400
+    image: milvusdb/milvus:0.10.3-cpu-d091720-f962e8
     restart: always
     volumes:
       - ${VECTORDB_WD}/milvus-conf:/var/lib/milvus/conf

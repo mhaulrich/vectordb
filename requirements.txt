@@ -2,6 +2,6 @@ flask
 flask-restful
 gunicorn
 psycopg2-binary
-pymilvus==0.2.10
+pymilvus==0.2.14
 protobuf
 
