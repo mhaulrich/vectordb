@@ -3,17 +3,11 @@ import numpy as np
 import sys
 import os
 
-MILVUS_HOST = 'milvus'
-MILVUS_PORT = '19530'  # default value
-
-_INDEX_FILE_SIZE = 32  # max file size of stored index
-_METRIC_TYPE = MetricType.IP
-
 LIMIT_RETRIES = 10
 DEBUG = os.environ.get('VECTORDB_DEBUG') == 'true'
 
-global_milvus = None
-
+DEFAULT_INDEX_SIZE = 1024
+DEFAULT_METRIC = MetricType.L2
 
 class VectorIndex:
     """A class for communication with Milvus vector index"""
@@ -21,8 +15,8 @@ class VectorIndex:
     def __init__(self, host, port):
         self.host = host
         self.port = port
-        self._indexFileSize = 32
-        self._metricType = MetricType.L2
+        self._indexFileSize = DEFAULT_INDEX_SIZE
+        self._metricType = DEFAULT_METRIC
         self._milvus =  None
 
         self.init()
@@ -90,7 +84,7 @@ class VectorIndex:
                 raise VectorIndexError("Could not create table '%s': %s."%(tableName,table_status.message))
 
             index_param = {
-                'nlist': 2048
+                'nlist': 16384
             }
             index_status = milvus.create_index(tableName, index_type, index_param)
             if not index_status.OK():

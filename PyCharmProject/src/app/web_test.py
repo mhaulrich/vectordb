@@ -1,4 +1,4 @@
-from app import app
+from app import app, DEFAULT_INDEX_TYPE
 import unittest
 import json
 import numpy as np
@@ -105,6 +105,17 @@ class TestService(unittest.TestCase):
         # self.test.post('/databases/%s/flush'%self.databaseName)
         #Or wait 2 secs for it to be done automatically:
         time.sleep(2)
+
+        #Test the database description
+        dbDescrResp = self.test.get('/databases/%s/'%self.databaseName)
+        self.assertEqual(200, pointResp.status_code, "Service should return OK on get existing database description")
+        dbDescription = json.loads(dbDescrResp.data)
+        print("database description: ")
+        print(dbDescription)
+        self.assertEqual(dbDescription['name'], self.databaseName, "Database description should show correct db name")
+        self.assertEqual(dbDescription['dimensions'], self.databaseDims, "Database decription should show the correct dimensions")
+        self.assertEqual(dbDescription['no_vectors'], n + 1, "Database decription should show the correct number of vectors inserted")
+        self.assertEqual(dbDescription['index']['type'], str(DEFAULT_INDEX_TYPE), "Have an index built of default type")
 
         #Test the pointlist
         pointListParams = {'count': n} #There should be at least n points

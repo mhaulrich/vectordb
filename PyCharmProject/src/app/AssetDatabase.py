@@ -140,6 +140,8 @@ class AssetDatabase:
         This creates the table and also adds information about it to the meta table.
         This call must be followed by a commit() call to be confirmed or a
         rollback() call to be cancelled."""
+        # TODO: index_type is not really needed at this point. Milvus keeps track of the current index type and it may
+        # actually change over time.
         cursor = self.cursor()
         # Write info about new vector table in meta
         try:

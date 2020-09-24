@@ -21,6 +21,8 @@ assetDB_port = "5432"
 milvus_host = "milvus"
 milvus_port ="19530"
 
+DEFAULT_INDEX_TYPE = IndexType.IVFLAT
+
 dbNamePattern = re.compile("^([\w]+)$")
 
 if __name__ == "__main__":
@@ -104,7 +106,7 @@ class DatabaseList(Resource):
         if not dbNamePattern.match(db_name):
             return "Error: Bad database naming '%s'. Only letters, numbers and underscore allowed."%db_name, 400
         dimensions = args['dimensions']
-        index_type='IVFLAT'
+        index_type = str(DEFAULT_INDEX_TYPE)
         if assetDB.tableExists(db_name):
             return "Error: Vector database with name '%s' already exists"%db_name, 409
 
@@ -112,7 +114,7 @@ class DatabaseList(Resource):
             # Create in postgres
             assetDB.createVectorTable(db_name, dimensions, index_type)
             # Create in Milvus
-            vectorIndex.createTable(db_name, dimensions, IndexType.IVFLAT)
+            vectorIndex.createTable(db_name, dimensions, DEFAULT_INDEX_TYPE)
         except Exception as e:
             #print("Something failed during table creation: %s"%str(e))
             if isinstance(e, VectorIndexError):
