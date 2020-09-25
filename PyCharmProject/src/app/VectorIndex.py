@@ -121,7 +121,12 @@ class VectorIndex:
         vector_list = self.make2DFloat(vector).tolist()
         print("Looking up %d nearest neighbours in table '%s' for query points: %s"%(k,tableName,vector))
 
-        params = {'nprobe': 16}
+        params = {
+            'nprobe': 16, #IVF_Flat
+            'search_length': 50, #RNSG
+            'ef': max(k,2000), # HNSW
+            'search_k': -1 # ANNOY - 5% of data
+        }
         status, queryResults = milvus.search(tableName, k, vector_list, params=params)
         if not status.OK():
             raise VectorIndexError("Could not lookup: %s"%status.message)

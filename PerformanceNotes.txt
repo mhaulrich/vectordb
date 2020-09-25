@@ -14,3 +14,8 @@ IVFLAT @ 10⁹ x 128D:
 Milvus supports partitions tags. I.e. we can tag all inserted vectors with a partition - e.g. source, or codeword.
 This allows us to confine searches to specific partitions, e.g. only within one codeword or source. Even supports
 regex.
+
+
+HNSW Paper: https://arxiv.org/pdf/1603.09320.pdf
+Figure 11 shows that the greater ef-parameter, the greater recall.
+In a 4D case ef=2,6,11 give 0.9, 0.99, 0.999 recall respectively.
