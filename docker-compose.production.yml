@@ -1,4 +1,4 @@
-#Default override, setting stuff in DEBUG mode
+#Production override, setting stuff in DEBUG mode
 version: '3'
 services:
 

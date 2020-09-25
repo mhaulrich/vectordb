@@ -119,7 +119,8 @@ class VectorIndex:
         """Lookup the 'k' nearest neighbours to the query vectors."""
         milvus = self.milvus()
         vector_list = self.make2DFloat(vector).tolist()
-        print("Looking up %d nearest neighbours in table '%s' for query points: %s"%(k,tableName,vector))
+        if DEBUG:
+            print("Looking up %d nearest neighbours in table '%s' for query points: %s"%(k,tableName,vector))
 
         params = {
             'nprobe': 16, #IVF_Flat
